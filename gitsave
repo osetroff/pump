@@ -1,0 +1,10 @@
+#git clone https://github.com/...
+#.git/config    https://osetroff@github....
+#git clone git@github.com:somerepo
+git remote set-url origin git@github.com:osetroff/pump.git
+
+ssh -T git@github.com
+git add -A .
+git commit -a -m "..."
+git push --all
+

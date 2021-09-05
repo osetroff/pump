@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project-private xmlns="http://www.netbeans.org/ns/project-private/1">
+    <code-assistance-data xmlns="http://www.netbeans.org/ns/make-project-private/1">
+        <code-model-enabled>true</code-model-enabled>
+    </code-assistance-data>
+    <data xmlns="http://www.netbeans.org/ns/make-project-private/1">
+        <activeConfTypeElem>0</activeConfTypeElem>
+        <activeConfIndexElem>0</activeConfIndexElem>
+    </data>
+    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="20">
+        <file>
+            <url>pump.cpp</url>
+            <bookmark id="6">
+                <name/>
+                <line>30</line>
+                <key/>
+            </bookmark>
+            <bookmark id="18">
+                <name/>
+                <line>234</line>
+                <key/>
+            </bookmark>
+            <bookmark id="20">
+                <name/>
+                <line>1065</line>
+                <key/>
+            </bookmark>
+            <bookmark id="19">
+                <name/>
+                <line>1610</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>ledlamp.cpp</url>
+            <bookmark id="1">
+                <name/>
+                <line>166</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>k_atmega328p_8mhz.cpp</url>
+            <bookmark id="8">
+                <name/>
+                <line>597</line>
+                <key/>
+            </bookmark>
+            <bookmark id="9">
+                <name/>
+                <line>628</line>
+                <key/>
+            </bookmark>
+        </file>
+    </editor-bookmarks>
+    <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
+        <group>
+            <file>file:/u/_home/_arduino/kot/pump/pump/pump.cpp</file>
+            <file>file:/u/_home/_arduino/kot/pump/pump/k_atmega328p_8mhz.cpp</file>
+        </group>
+    </open-files>
+</project-private>

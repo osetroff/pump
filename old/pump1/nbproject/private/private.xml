@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project-private xmlns="http://www.netbeans.org/ns/project-private/1">
+    <code-assistance-data xmlns="http://www.netbeans.org/ns/make-project-private/1">
+        <code-model-enabled>true</code-model-enabled>
+    </code-assistance-data>
+    <data xmlns="http://www.netbeans.org/ns/make-project-private/1">
+        <activeConfTypeElem>0</activeConfTypeElem>
+        <activeConfIndexElem>0</activeConfIndexElem>
+    </data>
+    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="12">
+        <file>
+            <url>pump.cpp</url>
+            <bookmark id="6">
+                <name/>
+                <line>30</line>
+                <key/>
+            </bookmark>
+            <bookmark id="7">
+                <name/>
+                <line>235</line>
+                <key/>
+            </bookmark>
+            <bookmark id="12">
+                <name/>
+                <line>276</line>
+                <key/>
+            </bookmark>
+            <bookmark id="11">
+                <name/>
+                <line>551</line>
+                <key/>
+            </bookmark>
+            <bookmark id="2">
+                <name/>
+                <line>764</line>
+                <key/>
+            </bookmark>
+            <bookmark id="4">
+                <name/>
+                <line>1055</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>ledlamp.cpp</url>
+            <bookmark id="1">
+                <name/>
+                <line>166</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>k_atmega328p_8mhz.cpp</url>
+            <bookmark id="8">
+                <name/>
+                <line>594</line>
+                <key/>
+            </bookmark>
+            <bookmark id="9">
+                <name/>
+                <line>625</line>
+                <key/>
+            </bookmark>
+        </file>
+    </editor-bookmarks>
+    <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
+        <group>
+            <file>file:/u/_home/_arduino/kot/pump/pump/pump.cpp</file>
+            <file>file:/u/_home/_arduino/kot/pump/pump/k_atmega328p_8mhz.cpp</file>
+        </group>
+    </open-files>
+</project-private>
