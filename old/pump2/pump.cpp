@@ -238,6 +238,7 @@ enum pump_info_e
     pump_on_low,
     pump_press_high,
     pump_norm,
+    pump_night,
     pump_last
 };
 
@@ -248,6 +249,7 @@ static const char * pump_info_str[pump_last]={
     "start from low",
     "press high",
     "start from norm",
+    "night"
 };
 //pump info to display
 pump_info_e pump_info;
@@ -1558,7 +1560,11 @@ struct pump_single_const_s
     u16 empty_delay_max;//
     u16 empty_delay_step;//
     
-    u16 delay_off_on_pause;//between off and on again 
+    //when we have only one pressure sensor
+    //after high pressure if we turn pump off - we will loose pressure
+    //so we need big delay to escape from on-off loop
+    u16 delay_after_high;
+    u16 delay_night;//if we can on pump but it is night
     u16 delay_low_press;//
     u16 delay_high_press;//
     u16 delay_measure;//
@@ -1580,7 +1586,8 @@ const pump_single_const_s pump_single={
 4*60*60,//hour*min*sec empty delay max
 30*60,//min*sec empty delay step
 
-10,//delay on off
+60*60,//delay after high
+60*60,//delay night
 10,//delay when get low pressure
 10,//delay when get high pressure
 1,//seconds between measuring pressure
@@ -1804,6 +1811,10 @@ static u8 var_single_without_back_valve_press1(void)
                 if (lon==0)
                 {
                     s("night");
+                    pump_info=pump_night;
+                    //delay empty_delay
+                    delay_sec_pwrdown(pump_single.delay_night, led_no);
+                    
                 }
                 else
                 {
@@ -1847,7 +1858,7 @@ static u8 var_single_without_back_valve_press1(void)
                         pump_info=pump_press_high;
                         //delay high_pressure
                         delay_sec_pwrdown(
-                            pump_single.delay_off_on_pause, led_off_on);
+                            pump_single.delay_after_high, led_off_on);
                     }
                 }
 
