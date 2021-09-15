@@ -71,6 +71,70 @@ static inline void mc_randnz_add(u8 ladd)
 }
 
 
+//------------------
+#define ee_rs485_pump_addr  1023
+struct pump_single_const_s
+{
+    
+    u16 press1_offset_adc;
+    u16 press2_offset_adc;
+    //all pressure in 0.1bar (1 means 0.1)
+    
+    u16 press_min;//min pressure
+    u16 press_max;//max pressure
+    u16 press_dif_error;//difference between two continuous measurements
+    u16 press_max_error;//max presure pump cant do
+    
+    //all time in seconds
+    
+    u16 empty_pump_on_time_min;
+    u16 empty_delay_min;//
+    u16 empty_delay_max;//
+    u16 empty_delay_step;//
+    
+    //when we have only one pressure sensor
+    //after high pressure if we turn pump off - we will loose pressure
+    //so we need big delay to escape from on-off loop
+    u16 delay_after_high;
+    u16 delay_night;//if we can on pump but it is night
+    u16 delay_low_press;//
+    u16 delay_high_press;//
+    u16 delay_measure;//
+    u16 delay_start;//
+    
+    u16 time_max_pump_on;
+    
+    u16 delay_error;
+};
+
+const pump_single_const_s pump_single={
+
+103,//press1_offset_adc
+99,//press2_offset_adc
+
+4,//press_min
+30,//press max
+10,//press diff error
+34,//press max error
+
+10*60,//min*sec pump on min
+2*60*60,//hour*min*sec empty delay min
+4*60*60,//hour*min*sec empty delay max
+30*60,//min*sec empty delay step
+
+60*60,//delay after high
+60*60,//delay night
+10,//delay when get low pressure
+10,//delay when get high pressure
+1,//seconds between measuring pressure
+30,//delay_start
+
+2*60*60,//hour*min*sec max pump on time
+
+(u16)12*60*60,//hour*min*sec delay if pressure sensor error
+};
+
+
 //-----------------
 // button pins
 
@@ -820,7 +884,7 @@ static void rs485_send_msg( u8 lfrom,
 static void initRs485(void)
 {
     //pump address from eeprom
-    rs485_pump_addr=eerb(1023);
+    rs485_pump_addr=eerb(ee_rs485_pump_addr);
     //init msg space
     rs485_rmsg_init();
     //setup read int and fsm
@@ -973,7 +1037,7 @@ void spadc(void)
     s(" strts:");sp16(pump_on_cnt);spn;
     s(pump_info_str[pump_info]);spn;
     spdec(adc.vcc_mc,2,0);sp('/');
-    spdec(adc.vcc_press,3,0);s(" v");spn;
+    spdec(adc.vcc_press,2,0);s(" v");spn;
     spdec(adc.press1_bar,1,0);sps;
     sp16(adc.press1);sp('/');
     spdec(adc.press2_bar,1,0);sps;
@@ -992,19 +1056,27 @@ void spadc(void)
 }
 
 
-#define press_offset_adc    40
+
 //press in bar
-static u16 press_adc_to_bar(u16 lpress)
+static u16 press_adc_to_bar(u16 lpress,
+                            u16 lpress_offset)
 {
     spn;
-    if (lpress<=press_offset_adc)
+    if (lpress<=lpress_offset)
     {
         return 0;
     }
     else
     {
-        return (((((long)(lpress-press_offset_adc)
-                *adc.vcc_press)/adc_max_points))*13)/400;
+        //1.calc ADC=ADC_measured-ADC_zero_offset
+        //2.calc adc measured voltage
+        // V=ADC*(VCC_press*100)/ADC_max_points
+        //3.calc press in 0.1 bar
+        // volt per 0.1bar = 4V/12bar=0.333 V
+        // P*10=V/v=V/33
+        return (((long)(lpress-lpress_offset)//adc
+                *adc.vcc_press)/adc_max_points)//volt
+                /33;// div Y volt per 0.1bar
     }
 }
 
@@ -1039,13 +1111,15 @@ static u8 adc_read(void)
     
     ladc.vcc_press=(((long)ladc.vcc_press*10*133/
                     adc_max_points)*
-                    ladc.vcc_mc)/100;
+                    ladc.vcc_mc)/1000;///100
     
     //-----------
     //calc press1 in volts
     //sp16(ladc.press1,4);spn;
-    ladc.press1_bar=press_adc_to_bar(ladc.press1);
-    ladc.press2_bar=press_adc_to_bar(ladc.press2);
+    ladc.press1_bar=press_adc_to_bar(ladc.press1,
+                            pump_single.press1_offset_adc);
+    ladc.press2_bar=press_adc_to_bar(ladc.press2,
+                            pump_single.press2_offset_adc);
     
 
     cli();
@@ -1544,59 +1618,6 @@ static u8 var_test(void)
 //delay after well was empty in seconds
 u16 empty_delay;
 
-struct pump_single_const_s
-{
-    //all pressure in 0.1bar (1 means 0.1)
-    
-    u16 press_min;//min pressure
-    u16 press_max;//max pressure
-    u16 press_dif_error;//difference between two continuous measurements
-    u16 press_max_error;//max presure pump cant do
-    
-    //all time in seconds
-    
-    u16 empty_pump_on_time_min;
-    u16 empty_delay_min;//
-    u16 empty_delay_max;//
-    u16 empty_delay_step;//
-    
-    //when we have only one pressure sensor
-    //after high pressure if we turn pump off - we will loose pressure
-    //so we need big delay to escape from on-off loop
-    u16 delay_after_high;
-    u16 delay_night;//if we can on pump but it is night
-    u16 delay_low_press;//
-    u16 delay_high_press;//
-    u16 delay_measure;//
-    u16 delay_start;//
-    
-    u16 time_max_pump_on;
-    
-    u16 delay_error;
-};
-
-const pump_single_const_s pump_single={
-4,//press_min
-30,//press max
-10,//press diff error
-34,//press max error
-
-10*60,//min*sec pump on min
-2*60*60,//hour*min*sec empty delay min
-4*60*60,//hour*min*sec empty delay max
-30*60,//min*sec empty delay step
-
-60*60,//delay after high
-60*60,//delay night
-10,//delay when get low pressure
-10,//delay when get high pressure
-1,//seconds between measuring pressure
-30,//delay_start
-
-2*60*60,//hour*min*sec max pump on time
-
-(u16)12*60*60,//hour*min*sec delay if pressure sensor error
-};
 
 
 
