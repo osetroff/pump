@@ -1075,7 +1075,7 @@ static u16 press_adc_to_bar(u16 lpress,
         // volt per 0.1bar = 4V/12bar=0.333 V
         // P*10=V/v=V/33
         return (((long)(lpress-lpress_offset)//adc
-                *adc.vcc_press)/adc_max_points)//volt
+                *adc.vcc_press*10)/adc_max_points)//volt
                 /33;// div Y volt per 0.1bar
     }
 }
@@ -1625,6 +1625,38 @@ u16 empty_delay;
 // var with single pump without BV
 //--------------------------------
 
+//check press sensor
+static u8 press_check(  u16 lpress_bar,
+                        u16 lpress_bar_next)
+{
+    if ((lpress_bar>=pump_single.press_max_error)||
+         (lpress_bar_next>=pump_single.press_max_error))
+    {
+        return 1;
+    }
+    else    
+    {
+        if (lpress_bar>lpress_bar_next)
+        {
+            if ((lpress_bar-lpress_bar_next)>
+                pump_single.press_dif_error) 
+            {
+                return 1;
+            }
+        }
+        else
+        {
+            if ((lpress_bar_next-lpress_bar)>
+                pump_single.press_dif_error) 
+            {
+                return 1;
+            } 
+        }
+    }
+    
+    return 0;
+}
+
 
 //with WATCHDOG!!!
 static u8 var_single_without_back_valve_press1(void)
@@ -1668,6 +1700,7 @@ static u8 var_single_without_back_valve_press1(void)
         
         //save
         u16 lpress1_bar=adc.press1_bar;
+        u16 lpress2_bar=adc.press2_bar;
         u8 le=0;
         
         
@@ -1679,34 +1712,13 @@ static u8 var_single_without_back_valve_press1(void)
         
         
         //check press sensor
-        if ((lpress1_bar>=pump_single.press_max_error)||
-             (adc.press1_bar>=pump_single.press_max_error))
-        {
-            le=1;
-        }
-        else    
-        {
-            if (lpress1_bar>adc.press1_bar)
-            {
-                if ((lpress1_bar-adc.press1_bar)>
-                    pump_single.press_dif_error) 
-                {
-                    le=1;
-                }
-            }
-            else
-            {
-                if ((adc.press1_bar-lpress1_bar)>
-                    pump_single.press_dif_error) 
-                {
-                    le=1;
-                } 
-            }
-        }
+        le+=press_check(lpress1_bar,adc.press1_bar);
+        le+=press_check(lpress2_bar,adc.press2_bar);
+        
         
 
         //if error of pressure sensor
-        if (le)
+        if (le!=0)
         {
             led_er_high();
             pump_off();
