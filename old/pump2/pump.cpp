@@ -991,8 +991,8 @@ void sptime_s_to_hm(u16 lsec)
             sp8(lt,2);sp(':');
             lt=lsec%3600;
         }
-        sp8(lsec/60,2);sp(':');
-        sp8(lsec%60,2);
+        sp8(lt/60,2);sp(':');
+        sp8(lt%60,2);
     }
 }
 
