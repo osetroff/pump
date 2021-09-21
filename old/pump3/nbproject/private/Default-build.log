@@ -1,0 +1,16 @@
+avr-gcc -Wall -Os -DF_CPU=8000000L -mmcu=atmega328p   -c ledlamp.cpp -o ledlamp.o
+avr-gcc -Wall -Os -DF_CPU=8000000L -mmcu=atmega328p  -o ledlamp.elf   ledlamp.o 
+rm -f ledlamp.hex
+avr-objcopy -j .text -j .data -O ihex ledlamp.elf ledlamp.hex
+avr-size --format=avr --mcu=atmega328p ledlamp.elf
+AVR Memory Usage
+----------------
+Device: atmega328p
+
+Program:     248 bytes (0.8% Full)
+(.text + .data + .bootloader)
+
+Data:          0 bytes (0.0% Full)
+(.data + .bss + .noinit)
+
+
