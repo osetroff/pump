@@ -1460,6 +1460,7 @@ void test_blink(void)
     atmega328p_init();
     initLedPins();
     initRs485Pins();
+    initRelayPins();
     
     //----------
     initRs485();
@@ -1467,6 +1468,8 @@ void test_blink(void)
     
     //----------
     sei();
+    
+    
     // main loop
     volatile u8 li=0;
     sph(rs485_pump_addr);spn;
@@ -1477,15 +1480,18 @@ void test_blink(void)
     wdt_on();
     while (1) {
         led_main_high();
-        led_er_low();
-        mc_pwrdown(_250);
+        //led_er_low();
+        relay_pin_high();
+       
+        mc_pwrdown(_1s);
         //dms(250);
         led_main_low();
-        led_er_high();
+        //led_er_high();
+        relay_pin_low();
         //dms(1200);
         //wdt_reset();
         //dms(1200);
-        mc_pwrdown(_250);
+        mc_pwrdown(_1s);
         //dms(250);
         
         
