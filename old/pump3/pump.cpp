@@ -1941,7 +1941,7 @@ static u8 var_single_without_back_valve_press1(void)
 //=========================
 int main(void){
 
-    //test_blink();
+    test_blink();
     
     //-------------
     // init
