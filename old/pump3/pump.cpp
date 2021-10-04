@@ -2,6 +2,7 @@
 //can accept and send power on status to another pump controller
 //atmega328p 8mhz int dip28
 //20210811
+//cutecom for rs485
 #include "k_atmega328p_8mhz.cpp"
 
 //-----------------
@@ -1456,14 +1457,25 @@ static void delay_sec_pwrdown(  u16 lsec,
 
 void test_blink(void)
 {
+    //-------------
     // init
     atmega328p_init();
     initLedPins();
-    initRs485Pins();
     initRelayPins();
+    initAdcPins();
+    initRs485Pins();
+    initBtnPins();
     
     //----------
+    initPump();
+
+    //-------------
     initRs485();
+    
+    //-------------
+    initBtn();
+    
+    //-------------
     serial_init();
     
     //----------
@@ -1482,23 +1494,41 @@ void test_blink(void)
         led_main_high();
         //led_er_low();
         relay_pin_high();
-       
-        mc_pwrdown(_1s);
-        //dms(250);
+        sph(1);spn;
+        //dus(200);
+        //mc_pwrdown(_1s);
+        dms(1000);
+        
+        
+        
         led_main_low();
         //led_er_high();
         relay_pin_low();
-        //dms(1200);
+        sph(0);spn;
+        //dus(200);
         //wdt_reset();
-        //dms(1200);
-        mc_pwrdown(_1s);
+        dms(1000);
+        //mc_pwrdown(_1s);
         //dms(250);
         
         
+        u8 li=serial_has_input;
+        if (li!=0)
+        {
+            s("send by rs485");spn;
+            rs485_send_msg(
+                    rs485_pump_addr,
+                    rs485_broadcast_addr,
+                    1,
+                    &serial_buf[0]);
+            serial_buf_clear();
+        }
+        
         //
-        u8 li=rs485_has_new_msg();
+        li=rs485_has_new_msg();
         if (li!=rs485_rmsg_no)
         {
+            s("read by rs485");spn;
             //show new msg
 //            rs485_send_msg((rs485_rmsg[li].fromto)>>4,
 //                            (rs485_rmsg[li].fromto)&0xf,
