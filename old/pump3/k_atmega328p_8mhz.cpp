@@ -198,38 +198,35 @@ inline static byte eerb(void) {
   return EEDR;
 }
 
-inline static word ee_getaddr(void)
+inline static word eea_get(void)
 {
     return EEAR;
 }
 
-inline static void ee_setaddr(word addr) {
+inline static void eea_set(word addr) {
   EEAR = addr;
 }
 
-inline static byte eerb_next(void) {
-  EEAR += 1;
-  return eerb();
+inline static void eea_next(void) {
+  EEAR+ =1;
 }
 
 
 //!!!! always test for eeprom errors!!!
 //ret 1 if error , ret 0 if ok
-static byte eewb(byte val, byte lnext) {
-  byte lprev;
-  if (lnext!=0)
-  {
-      EEAR+=1;
-  }    
+static byte eewb(byte val) {
   byte lprev=eerb();
   if (lprev!=val) {
-    //EEAR = addr;
     EEDR = val;
     EECR |= 1 << EEMPE; /* Write logical one to EEMPE */
     EECR |= 1 << EEPE;  /* Start eeprom write by setting EEPE */
     //test for errors
     eewait();
-    if (eerb())!=val) return 1;
+    if (eerb())!=val) 
+    {
+        
+        return 1;
+    }
   }
   return 0;
 }
