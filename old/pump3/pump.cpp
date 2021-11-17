@@ -1494,7 +1494,7 @@ void test_blink(void)
         led_main_high();
         //led_er_low();
         relay_pin_high();
-        sph(1);spn;
+        //sph(1);spn;
         //dus(200);
         //mc_pwrdown(_1s);
         dms(1000);
@@ -1504,7 +1504,7 @@ void test_blink(void)
         led_main_low();
         //led_er_high();
         relay_pin_low();
-        sph(0);spn;
+        //sph(0);spn;
         //dus(200);
         //wdt_reset();
         dms(1000);
@@ -1519,7 +1519,7 @@ void test_blink(void)
             rs485_send_msg(
                     rs485_pump_addr,
                     rs485_broadcast_addr,
-                    1,
+                    serial_buf_i,
                     &serial_buf[0]);
             serial_buf_clear();
         }

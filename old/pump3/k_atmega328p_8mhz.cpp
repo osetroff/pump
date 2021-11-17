@@ -190,24 +190,30 @@ void dms(uint16_t tic_ms){
 //========================
 //   eeprom
 //========================
-inline static byte eerb(word addr) {
-  while (!bit_is_clear(EECR, EEPE));
-  EEAR = addr;
+inline static void eewait(void) {
+  while (!bit_is_clear(EECR, EEPE));  
+}
+inline static byte eerb_(void) {
   EECR |= 1 << EERE;  /* Start eeprom read by writing EERE */
   return EEDR;
 }
+
+inline static byte eerb(word addr) {
+  EEAR = addr;
+  return eerb_();
+}
 //!!!! always test for eeprom errors!!!
 //ret 1 if error , ret 0 if ok
-inline static byte eewb(word addr, byte val) {
+static byte eewb(word addr, byte val) {
   byte lprev=eerb(addr);
   if (lprev!=val) {
-    while (!bit_is_clear(EECR, EEPE));
-    EEAR = addr;
+    //EEAR = addr;
     EEDR = val;
     EECR |= 1 << EEMPE; /* Write logical one to EEMPE */
     EECR |= 1 << EEPE;  /* Start eeprom write by setting EEPE */
     //test for errors
-    if (eerb(addr)!=val) return 1;
+    eewait();
+    if (eerb_()!=val) return 1;
   }
   return 0;
 }
