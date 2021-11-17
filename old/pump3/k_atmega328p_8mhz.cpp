@@ -193,19 +193,35 @@ void dms(uint16_t tic_ms){
 inline static void eewait(void) {
   while (!bit_is_clear(EECR, EEPE));  
 }
-inline static byte eerb_(void) {
+inline static byte eerb(void) {
   EECR |= 1 << EERE;  /* Start eeprom read by writing EERE */
   return EEDR;
 }
 
-inline static byte eerb(word addr) {
-  EEAR = addr;
-  return eerb_();
+inline static word ee_getaddr(void)
+{
+    return EEAR;
 }
+
+inline static void ee_setaddr(word addr) {
+  EEAR = addr;
+}
+
+inline static byte eerb_next(void) {
+  EEAR += 1;
+  return eerb();
+}
+
+
 //!!!! always test for eeprom errors!!!
 //ret 1 if error , ret 0 if ok
-static byte eewb(word addr, byte val) {
-  byte lprev=eerb(addr);
+static byte eewb(byte val, byte lnext) {
+  byte lprev;
+  if (lnext!=0)
+  {
+      EEAR+=1;
+  }    
+  byte lprev=eerb();
   if (lprev!=val) {
     //EEAR = addr;
     EEDR = val;
@@ -213,7 +229,7 @@ static byte eewb(word addr, byte val) {
     EECR |= 1 << EEPE;  /* Start eeprom write by setting EEPE */
     //test for errors
     eewait();
-    if (eerb_()!=val) return 1;
+    if (eerb())!=val) return 1;
   }
   return 0;
 }
