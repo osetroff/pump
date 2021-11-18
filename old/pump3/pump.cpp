@@ -1159,6 +1159,7 @@ static void pump_data_show_all(void)
     u8 li=0;
     while (ln--)
     {
+        wdt_reset();
         pump_data_show_line(li); 
         li++;
     }
@@ -1804,12 +1805,9 @@ void test_blink(void)
             {
                 if (serial_buf[0]==0)
                 {
-                    //sp('@');
-                    
-
                     pump_data_show_all();
                     spn;
-                    wdt_reset();
+                    sp('>');
                 }
                 else
                 {
@@ -1864,11 +1862,11 @@ void test_blink(void)
                    spn;
                }
                //debug
-               else
-               {
-                   pump_data_show_line(lmodeli);
-                   pump_data_load_from_eeprom(pump_data_eeprom_addr);
-               }
+//               else
+//               {
+//                   pump_data_show_line(lmodeli);
+//                   pump_data_load_from_eeprom(pump_data_eeprom_addr);
+//               }
                pump_data_show_line(lmodeli);
               
                lmode=0;
