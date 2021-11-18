@@ -1155,7 +1155,8 @@ byte atmega328p_rand(){
 // UART
 //cyclic buffer for uart
 #define serial_buf_max 20
-byte serial_buf[serial_buf_max];
+//+1 for ending zero for const char *
+byte serial_buf[serial_buf_max+1];
 //index
 volatile byte serial_buf_i;
 //==1 if we have got '/n'
@@ -1163,8 +1164,15 @@ volatile byte serial_has_input;
 //save uart incoming bytes to cyclic buffer
 ISR(USART_RX_vect){
   register byte lb=UDR0;
-  if ((lb=='\n')||(lb=='\r')) {serial_has_input=1;}
-  else if (serial_buf_i<serial_buf_max) {serial_buf[serial_buf_i++]=lb;}
+  if (serial_has_input!=1)
+  {
+    if ((lb=='\n')||(lb=='\r')||(serial_buf_i==serial_buf_max)) 
+    {
+        serial_has_input=1;
+        lb=0;
+    }
+    serial_buf[serial_buf_i++]=lb;
+  }
 }
 //clear buf
 static void serial_buf_clear(){
