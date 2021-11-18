@@ -208,7 +208,7 @@ inline static void eea_set(word addr) {
 }
 
 inline static void eea_next(void) {
-  EEAR+ =1;
+  EEAR=EEAR+1;
 }
 
 
@@ -222,7 +222,7 @@ static byte eewb(byte val) {
     EECR |= 1 << EEPE;  /* Start eeprom write by setting EEPE */
     //test for errors
     eewait();
-    if (eerb())!=val) 
+    if (eerb()!=val) 
     {
         
         return 1;

@@ -72,6 +72,64 @@ static inline void mc_randnz_add(u8 ladd)
 }
 
 
+//---------------------
+// eeprom
+#define pump_ee_start_addr  4
+
+// pump data
+struct pump_ee_s
+{
+    u8  addr;//pump address
+
+//all pressure in 0.1bar (1 means 0.1)
+   
+    u16 press1_offset_adc;//calibration val, 1 means 0.1bar
+    u16 press2_offset_adc;
+    
+    u16 press_min;//min pressure
+    u16 press_max;//max pressure
+    u16 press_dif_error;//er difference between two continuous measurements
+    u16 press_max_error;//max presure pump cant do
+
+//all time in seconds
+    
+    u16 empty_pump_on_time_min;
+    u16 empty_delay_min;//
+    u16 empty_delay_max;//
+    u16 empty_delay_step;//
+    
+    //when we have only one pressure sensor
+    //after high pressure if we turn pump off - we will loose pressure
+    //so we need big delay to escape from on-off loop
+    u16 delay_after_high;
+    u16 delay_night;//if we can on pump but it is night
+    u16 delay_low_press;//
+    u16 delay_high_press;//
+    u16 delay_measure;//
+    u16 delay_start;//
+    
+    u16 time_max_pump_on;//max continuous pump on
+    
+    u16 delay_error;
+};
+
+// copy pump data in ram from eeprom
+static pump_ee_s pump_data;
+
+// load data from eeprom to ram
+inline static void pump_data_load_from_ee(u16 laddr)
+{
+    //set addr
+    eea_set(laddr);
+    u16 llen=sizeof(pump_ee_s);
+    u8 * lp=(u8 *)&pump_data;
+    while (llen--)
+    {
+        *lp++=eerb();
+        eea_next();
+    }
+}
+
 //------------------
 #define ee_rs485_pump_addr  1023
 struct pump_single_const_s
@@ -885,7 +943,7 @@ static void rs485_send_msg( u8 lfrom,
 static void initRs485(void)
 {
     //pump address from eeprom
-    rs485_pump_addr=eerb(ee_rs485_pump_addr);
+    rs485_pump_addr=pump_data.addr;
     //init msg space
     rs485_rmsg_init();
     //setup read int and fsm
