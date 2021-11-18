@@ -3,7 +3,7 @@
 #define F_CPU 8000000L
 //to find in disassembled text by avr-objdump -S ...elf > ...txt
 #define _debm asm volatile("cli");asm volatile("sei");
-
+#include "stddef.h"
 /*
     atmega328p dip28
 

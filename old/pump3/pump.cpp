@@ -3,6 +3,7 @@
 //atmega328p 8mhz int dip28
 //20210811
 //cutecom for rs485
+
 #include "k_atmega328p_8mhz.cpp"
 
 //-----------------
@@ -74,10 +75,10 @@ static inline void mc_randnz_add(u8 ladd)
 
 //---------------------
 // eeprom
-#define pump_ee_start_addr  4
+#define pump_data_eeprom_addr  4
 
 // pump data
-struct pump_ee_s
+struct pump_data_s
 {
     u8  addr;//pump address
 
@@ -114,14 +115,29 @@ struct pump_ee_s
 };
 
 // copy pump data in ram from eeprom
-static pump_ee_s pump_data;
+static pump_data_s pump_data;
 
-// load data from eeprom to ram
-inline static void pump_data_load_from_ee(u16 laddr)
+// additional info for each pump data
+struct pump_data_info_s
+{
+    const char *    shortcut;//shortcut for pump data
+    const char *    description;//pump data description
+    u8      type;//pump data type
+    u8      size;//data size in bytes
+    u16     offset;//data offset 
+};
+//
+static const pump_data_info_s pump_data_info[]=
+{
+    {"ad","pump address for rs485",0,1,offsetof(pump_data_s,addr)} 
+};
+
+// copy pump data from eeprom to ram
+inline static void pump_data_load_from_eeprom(u16 laddr)
 {
     //set addr
     eea_set(laddr);
-    u16 llen=sizeof(pump_ee_s);
+    u16 llen=sizeof(pump_data_s);
     u8 * lp=(u8 *)&pump_data;
     while (llen--)
     {
@@ -130,8 +146,15 @@ inline static void pump_data_load_from_ee(u16 laddr)
     }
 }
 
+
+
+// show pump data
+inline static void pump_data_show(void)
+{
+    
+}
 //------------------
-#define ee_rs485_pump_addr  1023
+//#define ee_rs485_pump_addr  1023
 struct pump_single_const_s
 {
     
