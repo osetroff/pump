@@ -1163,15 +1163,23 @@ volatile byte serial_buf_i;
 volatile byte serial_has_input;
 //save uart incoming bytes to cyclic buffer
 ISR(USART_RX_vect){
-  register byte lb=UDR0;
-  if (serial_has_input!=1)
-  {
-    if ((lb=='\n')||(lb=='\r')||(serial_buf_i==serial_buf_max)) 
+    register byte lb=UDR0;
+    if (serial_has_input!=1)
     {
-        serial_has_input=1;
-        lb=0;
-    }
-    serial_buf[serial_buf_i++]=lb;
+        //backspace
+        if (lb==8)
+        {
+          if (serial_buf_i>0) serial_buf_i--;
+        }
+        else
+        {
+            if ((lb=='\n')||(lb=='\r')||(serial_buf_i==serial_buf_max)) 
+            {
+                serial_has_input=1;
+                lb=0;
+            }
+            serial_buf[serial_buf_i++]=lb;
+        }
   }
 }
 //clear buf

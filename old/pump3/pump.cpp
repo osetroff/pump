@@ -80,7 +80,8 @@ static inline void mc_randnz_add(u8 ladd)
 //pump data types
 enum pump_data_t
 {
-    pump_data_byte,//u8
+    pump_data_u8,//u8
+    pump_data_u16,//u16
     pump_data_0_1bar,//u16 1 decimal point (0.1) bar
     pump_data_sec,//u16 seconds
     pump_data_last,
@@ -100,11 +101,12 @@ struct pump_data_s
 {
     u8  addr;//pump address
 
-//all pressure in 0.1bar (1 means 0.1)
+
    
-    u16 press1_offset_adc;//calibration val, 1 means 0.1bar
+    u16 press1_offset_adc;//calibration val
     u16 press2_offset_adc;
     
+//all pressure in 0.1bar (1 means 0.1)    
     u16 press_min;//min pressure
     u16 press_max;//max pressure
     u16 press_dif_error;//er difference between two continuous measurements
@@ -140,25 +142,49 @@ static pump_data_s pump_data;
 // pump data info for interface
 static const pump_data_info_s pump_data_info[]=
 {
-    {"ad","pump address for rs485",pump_data_byte,offsetof(pump_data_s,addr)},
-    {"p1o","press1 adc offset",pump_data_0_1bar,offsetof(pump_data_s,press1_offset_adc)},
-    {"p2o","press2 adc offset",pump_data_0_1bar,offsetof(pump_data_s,press2_offset_adc)},
-    {"epdi","erroneous pressure diff for 2 measurements",pump_data_0_1bar,offsetof(pump_data_s,press_dif_error)},
-    {"epmx","erroneous pressure pump can not exceed",pump_data_0_1bar,offsetof(pump_data_s,press_max_error)},
-    {"eot","empty & on time",pump_data_sec,offsetof(pump_data_s,empty_pump_on_time_min)},
-    {"edmn","empty delay min",pump_data_sec,offsetof(pump_data_s,empty_delay_min)},
-    {"edmx","empty delay max",pump_data_sec,offsetof(pump_data_s,empty_delay_max)},
-    {"edst","empty delay step",pump_data_sec,offsetof(pump_data_s,empty_delay_step)},
-    {"dah","delay after high pressure",pump_data_sec,offsetof(pump_data_s,delay_after_high)},
-    {"dni","delay at night",pump_data_sec,offsetof(pump_data_s,delay_night)},
-    {"dlp","delay low pressure check",pump_data_sec,offsetof(pump_data_s,delay_low_press)},
-    {"dhp","delay high pressure check",pump_data_sec,offsetof(pump_data_s,delay_high_press)},
-    {"dm","delay measure",pump_data_sec,offsetof(pump_data_s,delay_measure)},
-    {"dm","delay measure",pump_data_sec,offsetof(pump_data_s,delay_measure)},
-    {"ds","delay start",pump_data_sec,offsetof(pump_data_s,delay_start)},
-    {"dpe","delay pressure error",pump_data_sec,offsetof(pump_data_s,delay_pressure_error)},
-    {"tmpo","time max pump on",pump_data_sec,offsetof(pump_data_s,time_max_pump_on)},
+    {"ad","pump address for rs485",pump_data_u8,offsetof(pump_data_s,addr)},
+    {"p1o","press1 adc offset",pump_data_u16,offsetof(pump_data_s,press1_offset_adc)},
+    {"p2o","press2 adc offset",pump_data_u16,offsetof(pump_data_s,press2_offset_adc)},
+    {"mip","min pressure to on 0.4",pump_data_0_1bar,offsetof(pump_data_s,press_min)},
+    {"map","max pressure to off 3.0",pump_data_0_1bar,offsetof(pump_data_s,press_max)},
+    {"epdi","erroneous pressure diff measure 1.0",pump_data_0_1bar,offsetof(pump_data_s,press_dif_error)},
+    {"epmx","erroneous pressure max 3.4",pump_data_0_1bar,offsetof(pump_data_s,press_max_error)},
+    {"eot","empty pump on time min 600",pump_data_sec,offsetof(pump_data_s,empty_pump_on_time_min)},
+    {"edmn","empty delay min 7200",pump_data_sec,offsetof(pump_data_s,empty_delay_min)},
+    {"edmx","empty delay max 14400",pump_data_sec,offsetof(pump_data_s,empty_delay_max)},
+    {"edst","empty delay step 1800",pump_data_sec,offsetof(pump_data_s,empty_delay_step)},
+    {"dah","delay after high pressure 3600",pump_data_sec,offsetof(pump_data_s,delay_after_high)},
+    {"dni","delay at night 3600",pump_data_sec,offsetof(pump_data_s,delay_night)},
+    {"dlp","delay low pressure check 10",pump_data_sec,offsetof(pump_data_s,delay_low_press)},
+    {"dhp","delay high pressure check 10",pump_data_sec,offsetof(pump_data_s,delay_high_press)},
+    {"dm","delay measure 1",pump_data_sec,offsetof(pump_data_s,delay_measure)},
+    {"ds","delay start 30",pump_data_sec,offsetof(pump_data_s,delay_start)},
+    {"dpe","delay pressure error 43200",pump_data_sec,offsetof(pump_data_s,delay_pressure_error)},
+    {"tmpo","time max pump on 7200",pump_data_sec,offsetof(pump_data_s,time_max_pump_on)},
 };
+//def
+/*
+ 4,//press_min
+30,//press max
+10,//press diff error
+34,//press max error
+
+10*60,//min*sec pump on min
+2*60*60,//hour*min*sec empty delay min
+4*60*60,//hour*min*sec empty delay max
+30*60,//min*sec empty delay step
+
+60*60,//delay after high
+60*60,//delay night
+10,//delay when get low pressure
+10,//delay when get high pressure
+1,//seconds between measuring pressure
+30,//delay_start
+
+2*60*60,//hour*min*sec max pump on time
+
+(u16)12*60*60,//hour*min*sec delay if pressure sensor 
+ */
 //
 #define pump_data_info_len (sizeof(pump_data_info)/sizeof(pump_data_info_s))
 
@@ -1026,7 +1052,7 @@ static void sp8(uint8_t la,uint8_t l0=0){
  uint8_t lz=0;
  while (l0>3)
  {
-     sp0;
+     sps;
      l0--;
  }
  if (la>=100) {
@@ -1034,7 +1060,7 @@ static void sp8(uint8_t la,uint8_t l0=0){
      sp(0x30+li);
      la-=(li*100);
      lz=1;
- } else {if (l0>2) {sp0;}}
+ } else {if (l0>2) {sps;}}
  if (la>=10) {
      li=la/10;
      sp(0x30+li);
@@ -1043,6 +1069,56 @@ static void sp8(uint8_t la,uint8_t l0=0){
  sp(0x30+la);
 }
 
+//l0=1
+static void sp16(uint16_t la,uint8_t l0=0) {
+    uint16_t l10=10000;
+    uint8_t l0i=5;
+    
+    uint8_t li;
+    u8 lz=0;
+    
+    //leading spaces
+    while (l0>l0i)
+    {
+        sps;
+        l0--;
+    }
+    //to first digit!=0
+    while (la<l10)
+    {
+        if (l0==l0i) 
+        {
+            sps;
+            l0--;
+        }
+        l0i--;
+        l10/=10;
+        if (l10==1)
+        {
+            
+            sp(0x30+la);
+            return;
+        }
+    }
+    //after first digit
+    while (l10>1)
+    {
+        if (la>=l10)
+        {
+            li=la/l10;
+            sp(0x30+li);
+            la=la%l10;
+        }
+        else
+        {
+            sp0;
+        }
+        l10/=10;
+    }    
+    sp(0x30+la);
+}
+/*
+ 
 //l0=1
 static void sp16(uint16_t la,uint8_t l0=0) {
      uint16_t l10=10000;
@@ -1060,7 +1136,7 @@ static void sp16(uint16_t la,uint8_t l0=0) {
      }
      sp(0x30+la);
 }
-
+*/
 
 //-------------------
 //decimal out, max 2 digit after comma
@@ -1125,8 +1201,11 @@ static void pump_data_show(u8 li)
     u16 la=(u16)(&pump_data)+pump_data_info[li].offset;
     switch (lj) 
     {
-        case    pump_data_byte://u8
-            sp8(*(u8 *)la,5);
+        case    pump_data_u8://u8
+            sp16(*(u8 *)la,5);
+            break;
+        case    pump_data_u16://u16
+            sp16(*(u16 *)la,5);
             break;
         case    pump_data_0_1bar://u16 1 decimal point (0.1) bar
             spdec(*(u16 *)la,1,5);
@@ -1204,11 +1283,13 @@ inline static u8 pump_data_serial_inp(u8 li)
     
     switch (lj) 
     {
-        case    pump_data_byte://u8
+        case    pump_data_u8://u8
             if (lresult>255) return 3;
             *(u8 *)la=lresult;
             if (eewb(lresult)!=0) return 4;
             break;
+            
+        case    pump_data_u16:
         case    pump_data_0_1bar:
         case    pump_data_sec:
             *(u16 *)la=lresult;
