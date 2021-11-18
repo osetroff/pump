@@ -90,7 +90,7 @@ struct pump_data_s
     u16 press_min;//min pressure
     u16 press_max;//max pressure
     u16 press_dif_error;//er difference between two continuous measurements
-    u16 press_max_error;//max presure pump cant do
+    u16 press_max_error;//max presure pump cant exceed
 
 //all time in seconds
     
@@ -117,19 +117,35 @@ struct pump_data_s
 // copy pump data in ram from eeprom
 static pump_data_s pump_data;
 
+//pump data types
+enum pump_data_t
+{
+    pump_data_byte,//u8
+    pump_data_0_1bar,//u16 1 decimal point (0.1) bar
+    pump_data_sec,//u16 seconds
+    pump_data_last,
+};
 // additional info for each pump data
 struct pump_data_info_s
 {
     const char *    shortcut;//shortcut for pump data
     const char *    description;//pump data description
-    u8      type;//pump data type
-    u8      size;//data size in bytes
-    u16     offset;//data offset 
+    pump_data_t     type;//pump data type
+    u16             offset;//data offset 
 };
+
 //
 static const pump_data_info_s pump_data_info[]=
 {
-    {"ad","pump address for rs485",0,1,offsetof(pump_data_s,addr)} 
+    {"ad","pump address for rs485",pump_data_byte,offsetof(pump_data_s,addr)},
+    {"p1o","press1 adc offset",pump_data_0_1bar,offsetof(pump_data_s,press1_offset_adc)},
+    {"p2o","press2 adc offset",pump_data_0_1bar,offsetof(pump_data_s,press2_offset_adc)},
+    {"pdife","erroneous diff between two contin measurements",pump_data_0_1bar,offsetof(pump_data_s,press_dif_error)},
+    {"pmaxe","maximum pressure pump can not exceed",pump_data_0_1bar,offsetof(pump_data_s,press_max_error)},
+    {"epot","when on & empty wait min time",pump_data_sec,offsetof(pump_data_s,empty_pump_on_time_min)},
+    {"edmin","empty delay min",pump_data_sec,offsetof(pump_data_s,empty_delay_min)},
+    {"edmax","empty delay max",pump_data_sec,offsetof(pump_data_s,empty_delay_max)},
+    {"edstep","empty delay step",pump_data_sec,offsetof(pump_data_s,empty_delay_step)},
 };
 
 // copy pump data from eeprom to ram
