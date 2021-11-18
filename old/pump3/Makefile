@@ -1,3 +1,4 @@
+TMP = /tmp/
 PRJ = pump
 MCU = atmega328p
 CLK = 8000000L
@@ -38,7 +39,7 @@ test:
 
 # flash program to mcu
 flash: all
-	$(AVRDUDE) -Uflash:w:$(PRJ).hex:i
+	$(AVRDUDE) -Uflash:w:$(TMP)$(PRJ).hex:i
 	mi
 
 # write fuses to mcu
@@ -47,28 +48,29 @@ fuse:
 
 # generate disassembly files for debugging
 disasm: $(PRJ).elf
-	$(OBJDUMP) -d $(PRJ).elf
+	$(OBJDUMP) -d $(TMP)$(PRJ).elf
 
 # remove compiled files
 clean:
-	rm -f *.hex *.elf *.o
+	rm -f $(TMP)*.hex $(TMP)*.elf $(TMP)*.o
 	$(foreach dir, $(EXT), rm -f $(dir)/*.o;)
 
 # other targets
 # objects from c files
 .c.o:
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $(TMP)$@
 
 # objects from c++ files
 .cpp.o:
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $(TMP)$@
 
 # elf file
 $(PRJ).elf: $(OBJ)
-	$(CC) $(CFLAGS) -o $(PRJ).elf $(OBJ)
+#	$(CC) $(CFLAGS) -o $(TMP)$(PRJ).elf $(OBJ)
+	$(CC) $(CFLAGS) -o $(TMP)$(PRJ).elf $(TMP)$(PRJ).o
 
 # hex file
 $(PRJ).hex: $(PRJ).elf
-	rm -f $(PRJ).hex
-	$(OBJCOPY) -j .text -j .data -O ihex $(PRJ).elf $(PRJ).hex
-	$(SIZE) $(PRJ).elf
+	rm -f $(TMP)$(PRJ).hex
+	$(OBJCOPY) -j .text -j .data -O ihex $(TMP)$(PRJ).elf $(TMP)$(PRJ).hex
+	$(SIZE) $(TMP)$(PRJ).elf
