@@ -1734,6 +1734,8 @@ static void usart_msg_process(void)
     {
         
     }
+    serial_buf_clear();
+
 }
 
 
@@ -2055,10 +2057,11 @@ int main(void){
     u8 lblink=0;
     
     //set start delay
-    u16 ldelay_end=rtc_sec_get_event_end(pump_data.delay_start);
+    //u16 ldelay_end=rtc_sec_get_event_end(pump_data.delay_start);
+    pump_delay_sec=pump_data.delay_start;
 
-
-    while (rtc_sec_get_event_rest(ldelay_end)!=0)
+    //while (rtc_sec_get_event_rest(ldelay_end)!=0)
+    while (pump_delay_sec!=0)
     {
         
         pump_pwridle(_1s);
@@ -2092,6 +2095,7 @@ int main(void){
                 serial_buf_clear();
             }
         }
+        sp16(pump_delay_sec);spn;
     }//START DELAY
     led_main_low();
     
@@ -2285,7 +2289,7 @@ int main(void){
     {
         wdt_reset();
         
-//-------------------
+
 //check pressure sensor error
         
         //measure pressure
@@ -2312,7 +2316,8 @@ int main(void){
         
         
 
-        //if error of pressure sensor
+
+//if error of pressure sensor
         if (le!=0)
         {
             led_main_high();
@@ -2340,8 +2345,8 @@ int main(void){
         
         
         
-        //--------------------
-        //check max on time
+
+//check max on time
         if ((pump_is_on())&&
                 (pump_on_time_s>pump_data.time_max_pump_on))
         {
@@ -2354,8 +2359,11 @@ int main(void){
         
         
         
-        //------------------------
-        // main
+//------------------------
+// main
+//------------------------
+
+
         if (adc.press1_bar<=pump_data.press_min)
         {
             if (pump_is_on())
