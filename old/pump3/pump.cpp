@@ -499,6 +499,35 @@ inline static void initAdcPins(void)
 
 
 //--------------------
+// timer for count seconds
+inline static void tim_sec_init(void)
+{
+    power_timer1_enable();
+    //stop 
+    TCCR1B=0;
+    //CTC 1second
+    OCR1A=(8000000/256)-1;
+    
+    TCCR1A=0;
+    TCCR1C=0;
+    TCNT1=0;
+    TIMSK1=(1<<OCIE1A);
+    TIFR1=0;
+    
+    //start tim
+    TCCR1B|=(1<<WGM12)|//CTC
+            (1<<CS12);//div 256
+    
+}
+
+//
+static u16 rtc_sec=0;
+ISR(TIMER1_COMPA_vect){
+    rtc_sec++;
+}          
+          
+          
+//--------------------
 // rs485
 //PD3 R0 INT1
 //PD7 DI
@@ -1831,6 +1860,10 @@ void test_blink(void)
     //-------------
     serial_init();
     
+    
+    //----------
+    tim_sec_init();
+    
     //----------
     sei();
     
@@ -1877,7 +1910,7 @@ void test_blink(void)
         dms(1000);
         //mc_pwrdown(_1s);
         //dms(250);
-        
+        //sp16(rtc_sec);spn;
         
         u8 li=serial_has_input;
         if (li!=0)
@@ -2442,6 +2475,8 @@ int main(void){
     //---------------
     serial_init();
 
+    //--------------
+    tim_sec_init();
     
     //--------------
     sei();
