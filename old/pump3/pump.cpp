@@ -4,6 +4,9 @@
 //20210811
 //cutecom for rs485
 
+//version YYMMN
+#define _ver    21110
+
 #include "k_atmega328p_8mhz.cpp"
 
 //-----------------
@@ -136,7 +139,8 @@ struct pump_data_s
 
 // copy pump data in ram from eeprom
 static pump_data_s pump_data;
-
+//delay after well was empty in seconds
+static u16 empty_delay;
 
 
 // pump data info for interface
@@ -212,65 +216,16 @@ inline static void pump_data_init(u16 laddr)
 
 //------------------
 //#define ee_rs485_pump_addr  1023
-struct pump_single_const_s
-{
-    
-    u16 press1_offset_adc;
-    u16 press2_offset_adc;
-    //all pressure in 0.1bar (1 means 0.1)
-    
-    u16 press_min;//min pressure
-    u16 press_max;//max pressure
-    u16 press_dif_error;//difference between two continuous measurements
-    u16 press_max_error;//max presure pump cant do
-    
-    //all time in seconds
-    
-    u16 empty_pump_on_time_min;
-    u16 empty_delay_min;//
-    u16 empty_delay_max;//
-    u16 empty_delay_step;//
-    
-    //when we have only one pressure sensor
-    //after high pressure if we turn pump off - we will loose pressure
-    //so we need big delay to escape from on-off loop
-    u16 delay_after_high;
-    u16 delay_night;//if we can on pump but it is night
-    u16 delay_low_press;//
-    u16 delay_high_press;//
-    u16 delay_measure;//
-    u16 delay_start;//
-    u16 delay_pressure_error;//delay on pressure error
-    
-    u16 time_max_pump_on;
-};
+//
 
-const pump_single_const_s pump_single={
 
-103,//press1_offset_adc
-99,//press2_offset_adc
 
-4,//press_min
-30,//press max
-10,//press diff error
-34,//press max error
 
-10*60,//min*sec pump on min
-2*60*60,//hour*min*sec empty delay min
-4*60*60,//hour*min*sec empty delay max
-30*60,//min*sec empty delay step
 
-60*60,//delay after high
-60*60,//delay night
-10,//delay when get low pressure
-10,//delay when get high pressure
-1,//seconds between measuring pressure
-30,//delay_start
 
-2*60*60,//hour*min*sec max pump on time
 
-(u16)12*60*60,//hour*min*sec delay if pressure sensor error
-};
+
+
 
 
 //-----------------
@@ -357,8 +312,8 @@ inline static void led_pin_low(void){led1_pin_low();}
 #define led_er_low() 
 #else
 //error led 
-#define led_er_high() led2_pin_high() 
-#define led_er_low() led2_pin_low() 
+//#define led_er_high() led2_pin_high() 
+//#define led_er_low() led2_pin_low() 
 #endif
 
 
@@ -459,8 +414,14 @@ pump_info_e pump_info;
 //
 static void initPump(void)
 {
-    pump_state=pump_state_def;
     pump_off();
+    pump_data_init(pump_data_eeprom_addr);
+    //set default empty_delay between empty well
+    empty_delay=pump_data.empty_delay_min;
+
+    pump_state=pump_state_def;
+    pump_info=pump_first;
+    
 }
 
 //-----------------
@@ -1512,9 +1473,9 @@ static u8 adc_read(void)
     //calc press1 in volts
     //sp16(ladc.press1,4);spn;
     ladc.press1_bar=press_adc_to_bar(ladc.press1,
-                            pump_single.press1_offset_adc);
+                            pump_data.press1_offset_adc);
     ladc.press2_bar=press_adc_to_bar(ladc.press2,
-                            pump_single.press2_offset_adc);
+                            pump_data.press2_offset_adc);
     
 
     cli();
@@ -1762,8 +1723,8 @@ static void led_main_blink250(void)
 
 //delay
 
-static void delay_sec_pwrdown(  u16 lsec,
-                                led_t lled)
+static void pump_delay_sec(  u16 lsec,
+                             led_t lled)
 {
     delay_sec=lsec;
     delay_exit=0;
@@ -1896,14 +1857,7 @@ void test_blink(void)
     //-------------
     serial_init();
     
-    //-----------
-    pump_data_init(pump_data_eeprom_addr);
-    spn;
-    s("pump_data:");
-    spn;
-    pump_data_show_all();
-    spn;
-    
+      
     //----------
     tim_sec_init();
     
@@ -1920,20 +1874,163 @@ void test_blink(void)
     //dus(1000);
 
     wdt_on();
+  
+    while (1)
+    {
+            led_main_high();
+    //        //led_er_low();
+            relay_pin_high();
+    //        //sph(1);spn;
+    //        //dus(200);
+    //        //mc_pwrdown(_1s);
+            dms(1000);
+    //        
+    //        
+    //        
+            led_main_low();
+    //        //led_er_high();
+            relay_pin_low();
+    //        //sph(0);spn;
+    //        //dus(200);
+    //        //wdt_reset();
+            dms(1000);
+    //        //mc_pwrdown(_1s);
+    //        //dms(250);
+    //        //sp16(rtc_sec);spn;
+    }
+
+
     
-    // START 
-    //set start delay
-    u16 ldelay_end=rtc_sec_get_event_end(pump_data.delay_start);
+    
+    s("END");
+    dus(1000);
+    while(1) pwrdown(_8s,b1);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//-------------------
+//check press sensor
+static u8 press_check(  u16 lpress_bar,
+                        u16 lpress_bar_next)
+{
+    if ((lpress_bar>=pump_data.press_max_error)||
+         (lpress_bar_next>=pump_data.press_max_error))
+    {
+        return 1;
+    }
+    else    
+    {
+        if (lpress_bar>lpress_bar_next)
+        {
+            if ((lpress_bar-lpress_bar_next)>
+                pump_data.press_dif_error) 
+            {
+                return 1;
+            }
+        }
+        else
+        {
+            if ((lpress_bar_next-lpress_bar)>
+                pump_data.press_dif_error) 
+            {
+                return 1;
+            } 
+        }
+    }
+    
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+//=========================
+// MAIN
+//=========================
+int main(void){
+
+    //test_blink();
+    
+    //-------------
+    // init
+    atmega328p_init();
+    initLedPins();
+    initRelayPins();
+    initAdcPins();
+    initRs485Pins();
+    initBtnPins();
+    
+    //-------------
+    wdt_on();
+
+    //----------
+    initPump();
+
+    //-------------
+    initRs485();
+    
+    //-------------
+    initBtn();
+   
+    //---------------
+    serial_init();
+
+    //--------------
+    tim_sec_init();
+    
+    //--------------
+    sei();
+    wdt_reset();
+    
+    //--------------
+    spn;
+    s("Pump without back valve ver ");
+    sp16(_ver);
+   
+    spn;
+    pump_data_show_all();
+    spn;
+    
+    
+
+//=============================
+// START 
     
     //blink
     u8 lblink=0;
     
-    //sp('!');sps;sp16(rtc_sec_get_event_rest(ldelay_end));spn;
+    //set start delay
+    u16 ldelay_end=rtc_sec_get_event_end(pump_data.delay_start);
+
+
     while (rtc_sec_get_event_rest(ldelay_end)!=0)
     {
-        //sp('*');sps;sp16(rtc_sec_get_event_rest(ldelay_end));spn;
         wdt_reset();
         pwridle(_1s);
+        
+        
         //blink
         lblink=1-lblink;
         if (lblink==0)
@@ -1965,41 +2062,30 @@ void test_blink(void)
     }//START DELAY
     led_main_low();
     
+    
+    
+    
+    
+    
+    
+    
+    
     //test if we go to SETUP
     if (lblink==2)
     {
-        // SETUP
+   
+//===========================
+// SETUP
         //modes
         u8 lmode=0;//0 input shortcut 1 input value
         u8 lmodeli=0;
         sp('>');
-
+        //
+        serial_buf_clear();
 
 
         while (1) {
-    //        led_main_high();
-    //        //led_er_low();
-    //        relay_pin_high();
-    //        //sph(1);spn;
-    //        //dus(200);
-    //        //mc_pwrdown(_1s);
-    //        dms(1000);
-    //        
-    //        
-    //        
-    //        led_main_low();
-    //        //led_er_high();
-    //        relay_pin_low();
-    //        //sph(0);spn;
-    //        //dus(200);
-    //        //wdt_reset();
-    //        dms(1000);
-    //        //mc_pwrdown(_1s);
-    //        //dms(250);
-    //        //sp16(rtc_sec);spn;
-
-
-
+ 
 
             wdt_reset();
             pwridle(_1s);
@@ -2097,7 +2183,11 @@ void test_blink(void)
 
             }
 
-            //
+
+
+
+
+// process rs485 msgs
             li=rs485_has_new_msg();
             if (li!=rs485_rmsg_no)
             {
@@ -2142,165 +2232,25 @@ void test_blink(void)
 
         }
     }//SETUP
-    s("END");
+    else
+    {
+        //start without setup
+        
+    }
+    
+    
+    
+    
+    
+//=============================
+// MAIN LOOP
+    s("MAIN");spn;
     dus(1000);
-    while(1) pwrdown(_8s,b1);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//===============================
-// variants
-
-#define var_state_continue 0
-#define var_state_exit     1
-
-//variable to exit from any var_procedure
-static u8 var_state;
-
-
- 
-
-//-------------------
-//test variant
-static u8 var_test(void)
-{
-    s("var_test");spn;
+    dms(4000);
     
-    while (var_state==var_state_continue) 
+    while (1) 
     {
-    //
-    led_main_high();
-    led_er_high();
-    relay_pin_high();
-    dms(1000);
-    relay_pin_low();
-    led_er_low();
-    led_main_low();
-    dms(1000);
-
-    adc_read();
-    spn;
-    }
-    return 0;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//--------------------
-// DAB divertron single pump mode without back valve inside pump
-//--------------------
-
-
-
-
-//delay after well was empty in seconds
-u16 empty_delay;
-
-
-
-
-//--------------------------------
-// var with single pump without BV
-//--------------------------------
-
-//check press sensor
-static u8 press_check(  u16 lpress_bar,
-                        u16 lpress_bar_next)
-{
-    if ((lpress_bar>=pump_single.press_max_error)||
-         (lpress_bar_next>=pump_single.press_max_error))
-    {
-        return 1;
-    }
-    else    
-    {
-        if (lpress_bar>lpress_bar_next)
-        {
-            if ((lpress_bar-lpress_bar_next)>
-                pump_single.press_dif_error) 
-            {
-                return 1;
-            }
-        }
-        else
-        {
-            if ((lpress_bar_next-lpress_bar)>
-                pump_single.press_dif_error) 
-            {
-                return 1;
-            } 
-        }
-    }
-    
-    return 0;
-}
-
-
-//with WATCHDOG!!!
-static u8 var_single_without_back_valve_press1(void)
-{
-    led_er_high();
-    led_main_high();
-    wdt_on();
-    s("var_single_without_back_valve_press1");spn;
-    
-    pump_info=pump_first;
-    //
-    pump_off();
-    
-    //set default empty_delay between empty well
-    empty_delay=pump_single.empty_delay_min;
-    
-    //delay start
-    delay_sec_pwrdown(pump_single.delay_start,led_no);
-    
-    
-    led_er_low();        
-    while (var_state==var_state_continue) 
-    {
-        // LED is on
-        led_main_high();
-        
-        
-        
-        
-        
-        
-        
+        //wdt_reset();
         
         //-------------------
         //check pressure sensor error
@@ -2332,7 +2282,7 @@ static u8 var_single_without_back_valve_press1(void)
         //if error of pressure sensor
         if (le!=0)
         {
-            led_er_high();
+            led_main_high();
             pump_off();
             bit_set1(pump_state,pump_state_er_press);
             //pressure sensor error
@@ -2340,9 +2290,9 @@ static u8 var_single_without_back_valve_press1(void)
             pump_info=pump_press_er;
             
             //delay on pressure error
-            delay_sec_pwrdown(
-                pump_single.delay_pressure_error, led_error);
-            led_er_low();
+            pump_delay_sec(pump_data.delay_pressure_error,
+                            led_error);
+            led_main_low();
             //bit_set0(pump_state,pump_state_er_press);
             continue;
         }
@@ -2360,7 +2310,7 @@ static u8 var_single_without_back_valve_press1(void)
         //--------------------
         //check max on time
         if ((pump_is_on())&&
-                (pump_on_time_s>pump_single.time_max_pump_on))
+                (pump_on_time_s>pump_data.time_max_pump_on))
         {
             spn;s("! max on time");spn;
             bit_set1(pump_state,pump_state_on_too_long);
@@ -2373,7 +2323,7 @@ static u8 var_single_without_back_valve_press1(void)
         
         //------------------------
         // main
-        if (adc.press1_bar<=pump_single.press_min)
+        if (adc.press1_bar<=pump_data.press_min)
         {
             if (pump_is_on())
             {
@@ -2383,8 +2333,8 @@ static u8 var_single_without_back_valve_press1(void)
                 //TODO led
                 
                 //delay low_pressure
-                delay_sec_pwrdown(
-                        pump_single.delay_low_press,led_low);
+                pump_delay_sec(pump_data.delay_low_press,
+                                led_low);
                 
                 //measure pressure
                 adc_read();
@@ -2393,7 +2343,7 @@ static u8 var_single_without_back_valve_press1(void)
                 sp_single_log();
                 
                 
-                if (adc.press1_bar<=pump_single.press_min)
+                if (adc.press1_bar<=pump_data.press_min)
                 {
                     //press1 still low -> pump off
                     
@@ -2402,15 +2352,15 @@ static u8 var_single_without_back_valve_press1(void)
                     
                     //calculate empty_delay
                     if (pump_on_time_s<=
-                            pump_single.empty_pump_on_time_min)
+                            pump_data.empty_pump_on_time_min)
                     {
                         
                         //pump was on short time -> increase delay
-                        if ((empty_delay+pump_single.empty_delay_step)<=
-                                pump_single.empty_delay_max)
+                        if ((empty_delay+pump_data.empty_delay_step)<=
+                                pump_data.empty_delay_max)
                         {
                             //increase delay
-                            empty_delay+=pump_single.empty_delay_step;
+                            empty_delay+=pump_data.empty_delay_step;
                             
                         }
                     }
@@ -2419,17 +2369,18 @@ static u8 var_single_without_back_valve_press1(void)
                         
                         //pump was on good amount time -> decrease delay
                         if (empty_delay>=
-                               (pump_single.empty_delay_min+
-                                pump_single.empty_delay_step))
+                               (pump_data.empty_delay_min+
+                                pump_data.empty_delay_step))
                         {
-                            empty_delay-=pump_single.empty_delay_step;
+                            empty_delay-=pump_data.empty_delay_step;
                         }
                     }
                     
                     s("* poff (empty) ");sp16(empty_delay);spn;
                     pump_info=pump_empty;
                     //delay empty_delay
-                    delay_sec_pwrdown(empty_delay, led_no);
+                    pump_delay_sec(empty_delay, 
+                                    led_no);
                     //bit_set0(pump_state,pump_state_empty);
                     
                 }
@@ -2458,7 +2409,8 @@ static u8 var_single_without_back_valve_press1(void)
                     s("night");
                     pump_info=pump_night;
                     //delay empty_delay
-                    delay_sec_pwrdown(pump_single.delay_night, led_no);
+                    pump_delay_sec(pump_data.delay_night, 
+                                    led_no);
                     
                 }
                 else
@@ -2477,14 +2429,14 @@ static u8 var_single_without_back_valve_press1(void)
                 
                 
                 //pump is on
-                if (adc.press1_bar>=pump_single.press_max)
+                if (adc.press1_bar>=pump_data.press_max)
                 {
                     //press1 is max
                     s(" high (on)");spn;
                     
                     //delay high_pressure
-                    delay_sec_pwrdown(
-                        pump_single.delay_high_press, led_high);
+                    pump_delay_sec(pump_data.delay_high_press,
+                                    led_high);
 
                     //measure pressure
                     adc_read();
@@ -2493,7 +2445,7 @@ static u8 var_single_without_back_valve_press1(void)
                     sp_single_log();
                 
                 
-                    if (adc.press1_bar>=pump_single.press_max)
+                    if (adc.press1_bar>=pump_data.press_max)
                     {
                         //still high pressure
                         bit_set1(pump_state,pump_state_high_press);
@@ -2502,8 +2454,8 @@ static u8 var_single_without_back_valve_press1(void)
                         s("* poff (high)");spn;
                         pump_info=pump_press_high;
                         //delay high_pressure
-                        delay_sec_pwrdown(
-                            pump_single.delay_after_high, led_off_on);
+                        pump_delay_sec(pump_data.delay_after_high, 
+                                        led_off_on);
                     }
                 }
 
@@ -2519,93 +2471,6 @@ static u8 var_single_without_back_valve_press1(void)
         }
         
         //delay_measure
-        if (pump_is_on())
-        {
-            //no sleep
-            dms(pump_single.delay_measure*1000);
-        }
-        else
-        {
-            delay_sec_pwrdown(pump_single.delay_measure,led_no);
-        }
-
-    }
-    
-    //
-    //wdt_disable();
-    
-    pump_off();
-
-    return 0;
-}
-
-
-
-
-
-
-
-
-
-
-//=========================
-// MAIN
-//=========================
-int main(void){
-
-    test_blink();
-    
-    //-------------
-    // init
-    atmega328p_init();
-    initLedPins();
-    initRelayPins();
-    initAdcPins();
-    initRs485Pins();
-    initBtnPins();
-    
-    //----------
-    initPump();
-
-    //-------------
-    initRs485();
-    
-    //-------------
-    initBtn();
-    
-    //---------------
-    serial_init();
-
-    //--------------
-    pump_data_init(pump_data_eeprom_addr);
-    
-    spn;
-    s("pump_data:");
-    spn;
-    pump_data_show_all();
-    spn;
-    //--------------
-    tim_sec_init();
-    
-    //--------------
-    sei();
-    
-//#ifdef _deb
-//    ldh;
-//    dms(1000);
-//    ldl;
-//#endif    
-
-
-    //=============================
-    // main loop
-    while (1) 
-    {
-        var_state=var_state_continue;
-        
-        var_single_without_back_valve_press1();
-        
-        //var_test(); 
-
-    }   
+        pump_delay_sec(pump_data.delay_measure,led_no);
+    } //MAIN LOOP   
 }
