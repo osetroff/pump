@@ -747,16 +747,16 @@ inline void wdtsleep(period_t period) {
 */
 
 //==================idle
-void idle(period_t period){
-  byte adc_ = (ADCSRA & (1 << ADEN));
-  adc_off();power_adc_disable();
-  power_spi_disable();
-  power_usart0_disable();
+static void pwridle(period_t period){
+  //byte adc_ = (ADCSRA & (1 << ADEN));
+  //adc_off();power_adc_disable();
+  //power_spi_disable();
+  //power_usart0_disable();
   wdtsleep(period);
   lowPowerBodOn(SLEEP_MODE_IDLE);
-  if (adc_>0) {power_adc_enable();adc_on();}
-  power_spi_enable();
-  power_usart0_enable();
+  //if (adc_>0) {power_adc_enable();adc_on();}
+  //power_spi_enable();
+  //power_usart0_enable();
 }
 
 
@@ -801,10 +801,11 @@ void idle(period_t period,adc_t adc,
 */
 
 //===============adcnoisereduction
-inline void adcnr(period_t period,timer2_t timer2) {
-  byte lt2=TCCR2B;
+inline void pwradcnr(period_t period,timer2_t timer2) {
+  byte lt2;
   //t2begin(timer2,);
   if (timer2 == t20)  {
+    lt2=TCCR2B;
     TCCR2B&=~((1 << CS22)|(1 << CS21)|(1 << CS20));
     power_timer2_disable();
   }

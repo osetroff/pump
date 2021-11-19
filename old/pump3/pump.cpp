@@ -1840,13 +1840,13 @@ static void delay_sec_pwrdown(  u16 lsec,
 //    );
 //}
 
-//compare two const char * ending with /0 or /n
+//compare serial buf with const char *
 //ret 1 if equal
-inline static u8 serial_inp_cmp(u8 li)
+inline static u8 serial_inp_cmp(const char * ls2)
 {
     u8 lb1,lb2;
     const char * ls1=(const char *)&serial_buf;
-    const char * ls2=pump_data_info[li].shortcut;
+    
     while (1)
     {
         lb1=*ls1++;
@@ -1913,41 +1913,69 @@ void test_blink(void)
     sph(rs485_pump_addr);spn;
     sph(rs485_msg_start_byte);sps;
     sph(fromto_func(rs485_msg_start_byte));spn;
-    dus(1000);
+    //dus(1000);
 
     wdt_on();
-    sp('>');
+    
+    
+    // SETUP
+    //modes
     u8 lmode=0;//0 input shortcut 1 input value
     u8 lmodeli=0;
+    sp('>');
+    
+    //blink
+    u8 lblink=0;
+    
     while (1) {
-        led_main_high();
-        //led_er_low();
-        relay_pin_high();
-        //sph(1);spn;
-        //dus(200);
-        //mc_pwrdown(_1s);
-        dms(1000);
+//        led_main_high();
+//        //led_er_low();
+//        relay_pin_high();
+//        //sph(1);spn;
+//        //dus(200);
+//        //mc_pwrdown(_1s);
+//        dms(1000);
+//        
+//        
+//        
+//        led_main_low();
+//        //led_er_high();
+//        relay_pin_low();
+//        //sph(0);spn;
+//        //dus(200);
+//        //wdt_reset();
+//        dms(1000);
+//        //mc_pwrdown(_1s);
+//        //dms(250);
+//        //sp16(rtc_sec);spn;
         
         
         
-        led_main_low();
-        //led_er_high();
-        relay_pin_low();
-        //sph(0);spn;
-        //dus(200);
-        //wdt_reset();
-        dms(1000);
-        //mc_pwrdown(_1s);
-        //dms(250);
-        //sp16(rtc_sec);spn;
         
+        wdt_reset();
+        pwridle(_1s);
+        
+//blink
+        lblink=1-lblink;
+        if (lblink==0)
+        { 
+            led_main_low();
+        }
+        else
+        {
+            led_main_high();
+        }
+        
+//test usart input
         u8 li=serial_has_input;
         if (li!=0)
         {
             //enter was detected
+            
+            //mode to select shortcut or command
             if (lmode==0)
             {
-                //mode to select shortcut or command
+                
                 
                 //empty input
                 if (serial_buf[0]==0)
@@ -1958,15 +1986,28 @@ void test_blink(void)
                 }
                 else
                 {
+//look for command
+                    
+                    //exit from setup
+                    if (serial_inp_cmp("exit")==1)
+                    {
+                        break;
+                    }
+                    
                     //look for parameter shortcut
                     u8 llen=pump_data_info_len;
                     li=0;
                     while (li<llen)
                     {
                         //compare
-                        if (serial_inp_cmp(li)==1)
+                        if (serial_inp_cmp(pump_data_info[li].shortcut)==1)
                         {
                             //found
+                            lmodeli=li;
+                            pump_data_show_line(lmodeli);
+                            sp(':');
+                            lmode=1;
+
                             break;
                         }
                         li++;
@@ -1974,22 +2015,9 @@ void test_blink(void)
                     //
                     if (li>=llen)
                     {
-                        s("not found");
-                        spn;
+                        //not found
                         sp('>');
                     }
-                    else
-                    {
-                        s("found ");
-                        spn;
-                        lmodeli=li;
-                        pump_data_show_line(lmodeli);
-                        sp(':');
-                        lmode=1;
-                        
-                    }
-                    //look for command
-            
                 }
             
 //            s("send by rs485");spn;
@@ -2070,9 +2098,11 @@ void test_blink(void)
             rs485_del_new_msg();
         }
             
-        dus(1000);
-        wdt_reset();
+        
     }
+    s("END");
+    dus(1000);
+    while(1) pwrdown(_8s,b1);
 }
 
 
