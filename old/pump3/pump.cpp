@@ -189,7 +189,7 @@ static const pump_data_info_s pump_data_info[]=
 #define pump_data_info_len (sizeof(pump_data_info)/sizeof(pump_data_info_s))
 
 // copy pump data from eeprom to ram
-inline static void pump_data_load_from_eeprom(u16 laddr)
+inline static void pump_data_init(u16 laddr)
 {
     //set addr
     eea_set(laddr);
@@ -201,6 +201,13 @@ inline static void pump_data_load_from_eeprom(u16 laddr)
         eea_next();
     }
 }
+
+
+
+
+
+
+
 
 
 //------------------
@@ -495,6 +502,143 @@ inline static void initAdcPins(void)
 
 
 
+//--------------------
+// serial output
+//--------------------
+inline static void sp(char lc){serial_write(lc);}
+#define spn sp(0xd);sp(0xa)
+#define sps sp(' ')
+#define sp0 sp('0')
+#define spm sp('-')
+inline static void s(const char *ls){serial_sendString(ls);}
+//sph hex
+static inline void sphc(char a){if (a>9) {a+='A'-10;} else {a+='0';} sp(a);}
+static void sph(uint8_t a) {sphc(a>>4);sphc(a&0xF);}
+static void sph16(uint16_t a) {sph(a>>8);sph(a&0xFF);}
+
+//decimal output in l0 places
+//l0=1
+static void sp8(uint8_t la,uint8_t l0=0){
+ uint8_t li;
+ uint8_t lz=0;
+ while (l0>3)
+ {
+     sps;
+     l0--;
+ }
+ if (la>=100) {
+     li=la/100;
+     sp(0x30+li);
+     la-=(li*100);
+     lz=1;
+ } else {if (l0>2) {sp0;}}
+ if (la>=10) {
+     li=la/10;
+     sp(0x30+li);
+     la-=(li*10);
+ } else {if ((l0>1)||(lz>0)) {sp0;}}
+ sp(0x30+la);
+}
+
+//l0=1
+static void sp16(uint16_t la,uint8_t l0=0) {
+    uint16_t l10=10000;
+    uint8_t l0i=5;
+    
+    uint8_t li;
+    u8 lz=0;
+    
+    //leading spaces
+    while (l0>l0i)
+    {
+        sps;
+        l0--;
+    }
+    //to first digit!=0
+    while (la<l10)
+    {
+        if (l0==l0i) 
+        {
+            sps;
+            l0--;
+        }
+        l0i--;
+        l10/=10;
+        if (l10==1)
+        {
+            
+            sp(0x30+la);
+            return;
+        }
+    }
+    //after first digit
+    while (l10>1)
+    {
+        if (la>=l10)
+        {
+            li=la/l10;
+            sp(0x30+li);
+            la=la%l10;
+        }
+        else
+        {
+            sp0;
+        }
+        l10/=10;
+    }    
+    sp(0x30+la);
+}
+
+//-------------------
+//decimal out, max 2 digit after comma
+//ldec=0,1,2,3 decimal digits after comma
+static void spdec(int16_t lt,uint8_t ldec,uint8_t l0){
+    //minus
+    if (lt<0) {spm;lt=-lt;} else {sps;}
+    if (l0>0) l0--;
+    
+    if (ldec==0) {sp16(lt,l0);}
+    else {
+        //dot
+        if (l0>0) l0--;
+        
+        uint16_t ld;
+        if (ldec==1) 
+        {
+            ld=10;
+        } else if (ldec==2)
+        {
+            ld=100;
+        } else 
+        {
+            ld=1000;
+        }
+        if (l0>ldec) l0-=ldec;
+        sp16((uint16_t)(lt/ld),l0);
+        sp('.');
+        sp8((uint8_t)(lt%ld),ldec);
+    }
+}
+
+void sptime_s_to_hm(u16 lsec)
+{
+    if (lsec>=((u16)17*60*60))
+    {
+        s(">17h");
+    }
+    else
+    {
+        u16 lt=lsec;
+        if (lsec>=3600)
+        {
+            lt=lsec/3600;
+            sp8(lt,2);sp(':');
+            lt=lsec%3600;
+        }
+        sp8(lt/60,2);sp(':');
+        sp8(lt%60,2);
+    }
+}
 
 
 
@@ -531,9 +675,10 @@ ISR(TIMER1_COMPA_vect){
 
 //set end time value for event from now for lsec seconds
 // 0<= lsec <= 32767
-inline static u16 rtc_sec_set_event_end(u16 lsec)
+inline static u16 rtc_sec_get_event_end(u16 lsec)
 {
-    return rtc_sec+lsec;
+    //sp16(rtc_sec+(lsec&0x7fff));spn;
+    return rtc_sec+(lsec&0x7fff);
 }
 
 //ret 0 if we have reached ltend
@@ -541,24 +686,29 @@ inline static u16 rtc_sec_set_event_end(u16 lsec)
 static u16 rtc_sec_get_event_rest(u16 ltend)
 {
     u16 ltnow=rtc_sec;
+    //sps;sp16(ltnow);sps;sp16(ltend);spn;
     
     if (ltend<ltnow)
     {
         //    e   n 
         // +--|------+ max
         
-        
+        //sp('1');spn;
         //test delta
-        if (ltnow-ltend+1<=rtc_sec_rest_delta_sec)
+        if (ltnow<=(ltend+rtc_sec_rest_delta_sec))
         {
             //    e   n d 
             // +--|-----------+ max
+            //   d     e   n 
+            // +-------|-----+ max
+            //sp('2');spn;
             return 0;
         }
         else
         {
             //    e   d n 
             // +--|-----------+ max
+            //sp('3');spn;
             return (0xffff-ltnow+1+ltend);
         }
     }
@@ -567,17 +717,31 @@ static u16 rtc_sec_get_event_rest(u16 ltend)
         //       n  e
         // +--------|-+ max
         
-        if (ltend+rtc_sec_rest_delta_sec<ltnow)
+        //sp('4');spn;
+        //test delta
+        if (ltnow>(ltend+rtc_sec_rest_delta_sec))
         {
             //   d   n  e
             // +--------|-+ max
+            //sp('5');spn;
             return ltend-ltnow+1;
         }
         else
         {
-            //   n d    e
-            // +--------|-+ max
-            return 0;
+            if (ltend<(ltend+rtc_sec_rest_delta_sec))
+            {
+                //   n   e d
+                // +-----|----+ max
+                //sp('6');spn;
+                return ltend-ltnow+1;
+            }
+            else
+            {
+                //   n d    e
+                // +--------|-+ max
+                //sp('7');spn;
+                return 0;
+            }
         }
     }
 }
@@ -1118,163 +1282,6 @@ static void initRs485(void)
 
 
 
-//--------------------
-// serial output
-//--------------------
-inline static void sp(char lc){serial_write(lc);}
-#define spn sp(0xd);sp(0xa)
-#define sps sp(' ')
-#define sp0 sp('0')
-#define spm sp('-')
-inline static void s(const char *ls){serial_sendString(ls);}
-//sph hex
-static inline void sphc(char a){if (a>9) {a+='A'-10;} else {a+='0';} sp(a);}
-static void sph(uint8_t a) {sphc(a>>4);sphc(a&0xF);}
-static void sph16(uint16_t a) {sph(a>>8);sph(a&0xFF);}
-
-//decimal output in l0 places
-//l0=1
-static void sp8(uint8_t la,uint8_t l0=0){
- uint8_t li;
- uint8_t lz=0;
- while (l0>3)
- {
-     sps;
-     l0--;
- }
- if (la>=100) {
-     li=la/100;
-     sp(0x30+li);
-     la-=(li*100);
-     lz=1;
- } else {if (l0>2) {sp0;}}
- if (la>=10) {
-     li=la/10;
-     sp(0x30+li);
-     la-=(li*10);
- } else {if ((l0>1)||(lz>0)) {sp0;}}
- sp(0x30+la);
-}
-
-//l0=1
-static void sp16(uint16_t la,uint8_t l0=0) {
-    uint16_t l10=10000;
-    uint8_t l0i=5;
-    
-    uint8_t li;
-    u8 lz=0;
-    
-    //leading spaces
-    while (l0>l0i)
-    {
-        sps;
-        l0--;
-    }
-    //to first digit!=0
-    while (la<l10)
-    {
-        if (l0==l0i) 
-        {
-            sps;
-            l0--;
-        }
-        l0i--;
-        l10/=10;
-        if (l10==1)
-        {
-            
-            sp(0x30+la);
-            return;
-        }
-    }
-    //after first digit
-    while (l10>1)
-    {
-        if (la>=l10)
-        {
-            li=la/l10;
-            sp(0x30+li);
-            la=la%l10;
-        }
-        else
-        {
-            sp0;
-        }
-        l10/=10;
-    }    
-    sp(0x30+la);
-}
-/*
- 
-//l0=1
-static void sp16(uint16_t la,uint8_t l0=0) {
-     uint16_t l10=10000;
-     uint8_t l0i=5;
-     uint8_t li;
-     while (l10>1){
-         if (la>=l10) {
-             l0=l0i;
-             li=la/l10;
-             sp(0x30+li);
-             la-=(li*l10);
-         } else if (l0>=l0i) {sp0;}
-         l10/=10;
-         l0i--;
-     }
-     sp(0x30+la);
-}
-*/
-
-//-------------------
-//decimal out, max 2 digit after comma
-//ldec=0,1,2,3 decimal digits after comma
-static void spdec(int16_t lt,uint8_t ldec,uint8_t l0){
-    //minus
-    if (lt<0) {spm;lt=-lt;} else {sps;}
-    if (l0>0) l0--;
-    
-    if (ldec==0) {sp16(lt,l0);}
-    else {
-        //dot
-        if (l0>0) l0--;
-        
-        uint16_t ld;
-        if (ldec==1) 
-        {
-            ld=10;
-        } else if (ldec==2)
-        {
-            ld=100;
-        } else 
-        {
-            ld=1000;
-        }
-        if (l0>ldec) l0-=ldec;
-        sp16((uint16_t)(lt/ld),l0);
-        sp('.');
-        sp8((uint8_t)(lt%ld),ldec);
-    }
-}
-
-void sptime_s_to_hm(u16 lsec)
-{
-    if (lsec>=((u16)17*60*60))
-    {
-        s(">17h");
-    }
-    else
-    {
-        u16 lt=lsec;
-        if (lsec>=3600)
-        {
-            lt=lsec/3600;
-            sp8(lt,2);sp(':');
-            lt=lsec%3600;
-        }
-        sp8(lt/60,2);sp(':');
-        sp8(lt%60,2);
-    }
-}
 
 
 
@@ -1889,6 +1896,13 @@ void test_blink(void)
     //-------------
     serial_init();
     
+    //-----------
+    pump_data_init(pump_data_eeprom_addr);
+    spn;
+    s("pump_data:");
+    spn;
+    pump_data_show_all();
+    spn;
     
     //----------
     tim_sec_init();
@@ -1896,66 +1910,31 @@ void test_blink(void)
     //----------
     sei();
     
-    s("pump_data:");
-    spn;
-    //copy data from eeprom to ram
-    pump_data_load_from_eeprom(pump_data_eeprom_addr);
     
-    //pump_data.addr=13;
-    //pump_data.press1_offset_adc=1215;
-    
-    pump_data_show_all();
-    spn;
-   
     
     // main loop
-    volatile u8 li=0;
-    sph(rs485_pump_addr);spn;
-    sph(rs485_msg_start_byte);sps;
-    sph(fromto_func(rs485_msg_start_byte));spn;
+//    volatile u8 li=0;
+//    sph(rs485_pump_addr);spn;
+//    sph(rs485_msg_start_byte);sps;
+//    sph(fromto_func(rs485_msg_start_byte));spn;
     //dus(1000);
 
     wdt_on();
     
-    
-    // SETUP
-    //modes
-    u8 lmode=0;//0 input shortcut 1 input value
-    u8 lmodeli=0;
-    sp('>');
+    // START 
+    //set start delay
+    u16 ldelay_end=rtc_sec_get_event_end(pump_data.delay_start);
     
     //blink
     u8 lblink=0;
     
-    while (1) {
-//        led_main_high();
-//        //led_er_low();
-//        relay_pin_high();
-//        //sph(1);spn;
-//        //dus(200);
-//        //mc_pwrdown(_1s);
-//        dms(1000);
-//        
-//        
-//        
-//        led_main_low();
-//        //led_er_high();
-//        relay_pin_low();
-//        //sph(0);spn;
-//        //dus(200);
-//        //wdt_reset();
-//        dms(1000);
-//        //mc_pwrdown(_1s);
-//        //dms(250);
-//        //sp16(rtc_sec);spn;
-        
-        
-        
-        
+    //sp('!');sps;sp16(rtc_sec_get_event_rest(ldelay_end));spn;
+    while (rtc_sec_get_event_rest(ldelay_end)!=0)
+    {
+        //sp('*');sps;sp16(rtc_sec_get_event_rest(ldelay_end));spn;
         wdt_reset();
         pwridle(_1s);
-        
-//blink
+        //blink
         lblink=1-lblink;
         if (lblink==0)
         { 
@@ -1965,141 +1944,204 @@ void test_blink(void)
         {
             led_main_high();
         }
-        
-//test usart input
+        //test usart input
         u8 li=serial_has_input;
         if (li!=0)
         {
             //enter was detected
             
-            //mode to select shortcut or command
-            if (lmode==0)
+            //exit from setup
+            if (serial_inp_cmp("123")==1)
             {
-                
-                
-                //empty input
-                if (serial_buf[0]==0)
-                {
-                    pump_data_show_all();
-                    spn;
-                    sp('>');
-                }
-                else
-                {
-//look for command
-                    
-                    //exit from setup
-                    if (serial_inp_cmp("exit")==1)
-                    {
-                        break;
-                    }
-                    
-                    //look for parameter shortcut
-                    u8 llen=pump_data_info_len;
-                    li=0;
-                    while (li<llen)
-                    {
-                        //compare
-                        if (serial_inp_cmp(pump_data_info[li].shortcut)==1)
-                        {
-                            //found
-                            lmodeli=li;
-                            pump_data_show_line(lmodeli);
-                            sp(':');
-                            lmode=1;
-
-                            break;
-                        }
-                        li++;
-                    }
-                    //
-                    if (li>=llen)
-                    {
-                        //not found
-                        sp('>');
-                    }
-                }
-            
-//            s("send by rs485");spn;
-//            rs485_send_msg(
-//                    rs485_pump_addr,
-//                    rs485_broadcast_addr,
-//                    serial_buf_i,
-//                    &serial_buf[0]);
-                
-                
+                lblink=2;
+                break;
             }
             else
             {
-                //mode !=0 enter value
-                //empty input
-                if (serial_buf[0]!=0)
+                //
+                serial_buf_clear();
+            }
+        }
+    }//START DELAY
+    led_main_low();
+    
+    //test if we go to SETUP
+    if (lblink==2)
+    {
+        // SETUP
+        //modes
+        u8 lmode=0;//0 input shortcut 1 input value
+        u8 lmodeli=0;
+        sp('>');
+
+
+
+        while (1) {
+    //        led_main_high();
+    //        //led_er_low();
+    //        relay_pin_high();
+    //        //sph(1);spn;
+    //        //dus(200);
+    //        //mc_pwrdown(_1s);
+    //        dms(1000);
+    //        
+    //        
+    //        
+    //        led_main_low();
+    //        //led_er_high();
+    //        relay_pin_low();
+    //        //sph(0);spn;
+    //        //dus(200);
+    //        //wdt_reset();
+    //        dms(1000);
+    //        //mc_pwrdown(_1s);
+    //        //dms(250);
+    //        //sp16(rtc_sec);spn;
+
+
+
+
+            wdt_reset();
+            pwridle(_1s);
+
+
+
+    //test usart input
+            u8 li=serial_has_input;
+            if (li!=0)
+            {
+                //enter was detected
+
+                //mode to select shortcut or command
+                if (lmode==0)
                 {
-                    if (pump_data_serial_inp(lmodeli)!=0)
+
+
+                    //empty input
+                    if (serial_buf[0]==0)
                     {
-                        s("ERROR");
+                        pump_data_show_all();
                         spn;
+                        sp('>');
                     }
-               //debug
-//               else
-//               {
-//                   pump_data_show_line(lmodeli);
-//                   pump_data_load_from_eeprom(pump_data_eeprom_addr);
-//               }
+                    else
+                    {
+    //look for command
+
+                        //exit from setup
+                        if (serial_inp_cmp("exit")==1)
+                        {
+                            break;
+                        }
+
+                        //look for parameter shortcut
+                        u8 llen=pump_data_info_len;
+                        li=0;
+                        while (li<llen)
+                        {
+                            //compare
+                            if (serial_inp_cmp(pump_data_info[li].shortcut)==1)
+                            {
+                                //found
+                                lmodeli=li;
+                                pump_data_show_line(lmodeli);
+                                sp(':');
+                                lmode=1;
+
+                                break;
+                            }
+                            li++;
+                        }
+                        //
+                        if (li>=llen)
+                        {
+                            //not found
+                            sp('>');
+                        }
+                    }
+
+    //            s("send by rs485");spn;
+    //            rs485_send_msg(
+    //                    rs485_pump_addr,
+    //                    rs485_broadcast_addr,
+    //                    serial_buf_i,
+    //                    &serial_buf[0]);
+
+
                 }
-                pump_data_show_line(lmodeli);
-              
-                lmode=0;
-                sp('>');
-            }    
-            serial_buf_clear();
-           
-        }
-        
-        //
-        li=rs485_has_new_msg();
-        if (li!=rs485_rmsg_no)
-        {
-            s("read by rs485");spn;
-            //show new msg
-//            rs485_send_msg((rs485_rmsg[li].fromto)>>4,
-//                            (rs485_rmsg[li].fromto)&0xf,
-//                            rs485_rmsg[li].len,
-//                            rs485_rmsg[li].data);
-            
-            //new msg to serial
-            u8 ln=rs485_rmsg[li].len;
-            u8 * lp=rs485_rmsg[li].data;
-            while (ln--)
-            {
-              sph(*lp++);sps;   
+                else
+                {
+                    //mode !=0 enter value
+                    //empty input
+                    if (serial_buf[0]!=0)
+                    {
+                        if (pump_data_serial_inp(lmodeli)!=0)
+                        {
+                            s("ERROR");
+                            spn;
+                        }
+                   //debug
+    //               else
+    //               {
+    //                   pump_data_show_line(lmodeli);
+    //                   pump_data_load_from_eeprom(pump_data_eeprom_addr);
+    //               }
+                    }
+                    pump_data_show_line(lmodeli);
+
+                    lmode=0;
+                    sp('>');
+                }    
+                //
+                serial_buf_clear();
+
             }
-            spn;
-            
-            
-            
-            //do action
-            lp=rs485_rmsg[li].data;
-            u8 lto=(rs485_rmsg[li].fromto)>>4;
-            if (lto!=rs485_broadcast_addr) switch (*lp++)
+
+            //
+            li=rs485_has_new_msg();
+            if (li!=rs485_rmsg_no)
             {
-                case pump_com_get_state:
-                    //send pump_state
-                    rs485_rmsg[li].data[1]=pump_state;
-                    rs485_send_msg(rs485_pump_addr,
-                            lto,
-                            2,
-                            rs485_rmsg[li].data);
-                    break;
+                s("read by rs485");spn;
+                //show new msg
+    //            rs485_send_msg((rs485_rmsg[li].fromto)>>4,
+    //                            (rs485_rmsg[li].fromto)&0xf,
+    //                            rs485_rmsg[li].len,
+    //                            rs485_rmsg[li].data);
+
+                //new msg to serial
+                u8 ln=rs485_rmsg[li].len;
+                u8 * lp=rs485_rmsg[li].data;
+                while (ln--)
+                {
+                  sph(*lp++);sps;   
+                }
+                spn;
+
+
+
+                //do action
+                lp=rs485_rmsg[li].data;
+                u8 lto=(rs485_rmsg[li].fromto)>>4;
+                if (lto!=rs485_broadcast_addr) switch (*lp++)
+                {
+                    case pump_com_get_state:
+                        //send pump_state
+                        rs485_rmsg[li].data[1]=pump_state;
+                        rs485_send_msg(rs485_pump_addr,
+                                lto,
+                                2,
+                                rs485_rmsg[li].data);
+                        break;
+                }
+
+
+                //free msg space
+                rs485_del_new_msg();
             }
-                    
-            
-            //free msg space
-            rs485_del_new_msg();
+
+
         }
-            
-        
-    }
+    }//SETUP
     s("END");
     dus(1000);
     while(1) pwrdown(_8s,b1);
@@ -2534,6 +2576,14 @@ int main(void){
     //---------------
     serial_init();
 
+    //--------------
+    pump_data_init(pump_data_eeprom_addr);
+    
+    spn;
+    s("pump_data:");
+    spn;
+    pump_data_show_all();
+    spn;
     //--------------
     tim_sec_init();
     
