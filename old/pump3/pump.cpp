@@ -1060,7 +1060,7 @@ static void sp8(uint8_t la,uint8_t l0=0){
      sp(0x30+li);
      la-=(li*100);
      lz=1;
- } else {if (l0>2) {sps;}}
+ } else {if (l0>2) {sp0;}}
  if (la>=10) {
      li=la/10;
      sp(0x30+li);
@@ -1882,8 +1882,12 @@ void test_blink(void)
         u8 li=serial_has_input;
         if (li!=0)
         {
+            //enter was detected
             if (lmode==0)
             {
+                //mode to select shortcut or command
+                
+                //empty input
                 if (serial_buf[0]==0)
                 {
                     pump_data_show_all();
@@ -1937,21 +1941,26 @@ void test_blink(void)
             }
             else
             {
-               if (pump_data_serial_inp(lmodeli)!=0)
-               {
-                   s("ERROR");
-                   spn;
-               }
+                //mode !=0 enter value
+                //empty input
+                if (serial_buf[0]!=0)
+                {
+                    if (pump_data_serial_inp(lmodeli)!=0)
+                    {
+                        s("ERROR");
+                        spn;
+                    }
                //debug
 //               else
 //               {
 //                   pump_data_show_line(lmodeli);
 //                   pump_data_load_from_eeprom(pump_data_eeprom_addr);
 //               }
-               pump_data_show_line(lmodeli);
+                }
+                pump_data_show_line(lmodeli);
               
-               lmode=0;
-               sp('>');
+                lmode=0;
+                sp('>');
             }    
             serial_buf_clear();
            
