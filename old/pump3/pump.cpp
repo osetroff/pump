@@ -526,7 +526,65 @@ ISR(TIMER1_COMPA_vect){
     rtc_sec++;
 }          
           
-          
+//delta in seconds to decide rest=0
+#define rtc_sec_rest_delta_sec  60*60
+
+//set end time value for event from now for lsec seconds
+// 0<= lsec <= 32767
+inline static u16 rtc_sec_set_event_end(u16 lsec)
+{
+    return rtc_sec+lsec;
+}
+
+//ret 0 if we have reached ltend
+//else ret rest in seconds
+static u16 rtc_sec_get_event_rest(u16 ltend)
+{
+    u16 ltnow=rtc_sec;
+    
+    if (ltend<ltnow)
+    {
+        //    e   n 
+        // +--|------+ max
+        
+        
+        //test delta
+        if (ltnow-ltend+1<=rtc_sec_rest_delta_sec)
+        {
+            //    e   n d 
+            // +--|-----------+ max
+            return 0;
+        }
+        else
+        {
+            //    e   d n 
+            // +--|-----------+ max
+            return (0xffff-ltnow+1+ltend);
+        }
+    }
+    else
+    {
+        //       n  e
+        // +--------|-+ max
+        
+        if (ltend+rtc_sec_rest_delta_sec<ltnow)
+        {
+            //   d   n  e
+            // +--------|-+ max
+            return ltend-ltnow+1;
+        }
+        else
+        {
+            //   n d    e
+            // +--------|-+ max
+            return 0;
+        }
+    }
+}
+   
+
+
+
 //--------------------
 // rs485
 //PD3 R0 INT1
@@ -1804,39 +1862,10 @@ inline static u8 serial_inp_cmp(u8 li)
     }
     return 0;
 }
-/*
- //compare two const char * ending with /0 or /n
-//ret 1 if equal
-inline static u8 serial_inp_cmp(u8 li)
-{
-    u8 lb1,lb2;
-    const char * ls1=(const char *)&serial_buf;
-    const char * ls2=pump_data_info[li].shortcut;
-    while (1)
-    {
-        lb1=*ls1++;
-        lb2=*ls2++;
-        
-        if ((lb1=='\n')||(lb1=='\r'))
-        {
-            lb1=0;
-        }
-        if ((lb2=='\n')||(lb2=='\r'))
-        {
-            lb2=0;
-        }
-        if (lb1==lb2)
-        {
-            if (lb1==0) return 1;
-        }
-        else
-        {
-           break; 
-        }
-    }
-    return 0;
-}
-*/
+
+
+
+
 void test_blink(void)
 {
     //-------------
