@@ -1,3 +1,20 @@
+//TODO 
+/*
+ 
+ * board 2
+ * remove wire from 06 D4
+ * move led to 12 D6
+ * check flow sens on 06 D4
+ * add photores
+ * add adc lines for press1 press2 and vcc divider
+ 
+ * board 1
+ * remove resistors from board 1 on 09 B6 and 10 B7
+ * remove led from 06 D4
+ * use led on 12 D6
+ * remove btn from 04 D2
+ 
+ */
 //pump control
 //can accept and send power on status to another pump controller by rs485
 //atmega328p 8mhz int dip28
@@ -5,7 +22,7 @@
 //cutecom for rs485
 
 //version YYMMN
-#define _ver    21110
+#define _ver    22110
 
 #include "k_atmega328p_8mhz.cpp"
 
@@ -33,20 +50,20 @@ relay in 5v out 220V 10a
  
 pressure sensor VCC=5V 10ma out 0.5 - 4.5V 0-12bar
 
-reset vcc to 10K. DTR 0.1u to RST   |01 RST     SCL  C5 28|  
-usart rx                            |02 D0 RXD  SDA  C4 27|  
-usart tx                            |03 D1 TXD       C3 26| -20k-gnd , -1k-photoresistor to check daylight
-Gnd-button+330R-pin,vcc-10k+        |04 D2 INT0      C2 25| -100k-GND, -33k-VCC_sensor to get VCC sensor
-RS485 RO                       330R |05 D3 INT1      C1 24| 100R in pressure sensor2 analog 0.4-4.5v
-LED1 1K                             |06 D4           C0 23| 100R in pressure sensor1 analog 0.4-4.5v
-VCC                                 |07 VCC         GND 22| GND
-GND                                 |08 GND        aref 21| 0.1u to gnd
-pump num jumper0 330R to vcc or gnd |09 B6         AVCC 20| VCC
-pump num jumper1 330R to vcc or gnd |10 B7      SCK  B5 19|
-hall flow sensor                    |11 D5  T1  MISO B4 18|
-LED2 1k                             |12 D6      MOSI B3 17|
-RS485 DI   330R                     |13 D7           B2 16|
-RS485 notRE/DE . HIGH to send  330R |14 B0           B1 15| pump relay 220V on/off 1/0 out 330R
+reset vcc to 10K. DTR 0.1u to RST       |01 RST     SCL  C5 28|  
+usart rx                                |02 D0 RXD  SDA  C4 27|  
+usart tx                                |03 D1 TXD       C3 26| -20k-gnd , -1k-photoresistor to check daylight
+XXX Gnd-button+330R-pin,vcc-10k+        |04 D2 INT0      C2 25| -100k-GND, -33k-VCC_sensor to get VCC sensor
+RS485 RO                       330R     |05 D3 INT1      C1 24| 100R in pressure sensor2 analog 0.4-4.5v
+T0 flow XXX LED1 1K                     |06 D4           C0 23| 100R in pressure sensor1 analog 0.4-4.5v
+VCC                                     |07 VCC         GND 22| GND
+GND                                     |08 GND        aref 21| 0.1u to gnd
+XXX pump num jumper0 330R to vcc or gnd |09 B6         AVCC 20| VCC
+XXX pump num jumper1 330R to vcc or gnd |10 B7      SCK  B5 19|
+                                        |11 D5  T1  MISO B4 18|
+LED 1k                                  |12 D6      MOSI B3 17|
+RS485 DI   330R                         |13 D7           B2 16|
+RS485 notRE/DE . HIGH to send  330R     |14 B0           B1 15| pump relay 220V on/off 1/0 out 330R
  
  * we have led om pump relay
  */
@@ -607,6 +624,8 @@ inline static void tim_sec_init(void)
     TCCR1A=0;
     TCCR1C=0;
     TCNT1=0;
+    
+    //int when TCNT>OCRA
     TIMSK1=(1<<OCIE1A);
     TIFR1=0;
     
@@ -616,15 +635,63 @@ inline static void tim_sec_init(void)
     
 }
 
+//flow counter for 1 sec 
+//=255 if higher than 254
+static u8 flow_cnt=0;
+//
+inline static void tim_flow_cnt_start(void)
+{
+    
+    //clk on T0 pin
+    TCCR0B=(1<<CS02)|(1<<CS01) //clk t0 on falling edge
+            | (1<<CS00) //clk t0 on rising edge
+            ;
+}
+//
+inline static void tim_flow_cnt_init()
+{
+    TCCR0B=0;
+    
+    TCCR0A=0;
+        
+    //int on overflow
+    TIMSK0=(1<<TOIE0);
+    TIFR0=0;
+    //to start tim inside tim_sec irq
+    TCNT0=0;
+}
+//
+ISR(TIMER0_OVF_vect)
+{
+    TCCR0B=0;
+    TCNT0=255;
+}
 //
 static u16 rtc_sec=0;
-ISR(TIMER1_COMPA_vect){
+ISR(TIMER1_COMPA_vect)
+{
+    
+    //next second
     rtc_sec++;
+    
+    //decrease pump_delay
     if (pump_delay_sec!=0) pump_delay_sec--;
+    
+    //
     if (pump_is_on()) 
     {
+        //increase pump_on_time
         pump_on_time_s++;
         if (pump_on_time_s==0){pump_on_time_s--;}
+        
+        //save flow cnt
+        flow_cnt=TCNT0;
+        TCNT0=0;
+        if (TCCR0B==0)
+        {
+            //again start tim flow cnt
+            tim_flow_cnt_start();
+        }
     }
 }          
           
@@ -1639,7 +1706,7 @@ void sp_single_log(void)
     if (pump_is_on())
     {
         s(" on ");sptime_s_to_hm(pump_on_time_s);
-        
+        s("flow ");sp8(flow_cnt);
     }
     else
     {
@@ -1871,34 +1938,6 @@ inline static u8 serial_inp_cmp(const char * ls2)
 
 void test_blink(void)
 {
-    //-------------
-    // init
-    atmega328p_init();
-    initLedPins();
-    initRelayPins();
-    initAdcPins();
-    initRs485Pins();
-    //initBtnPins();
-    
-    //----------
-    initPump();
-
-    //-------------
-    initRs485();
-    
-    //-------------
-    //initBtn();
-    
-    //-------------
-    serial_init();
-    
-      
-    //----------
-    tim_sec_init();
-    
-    //----------
-    sei();
-    
     
     
     // main loop
@@ -1908,8 +1947,7 @@ void test_blink(void)
 //    sph(fromto_func(rs485_msg_start_byte));spn;
     //dus(1000);
 
-    wdt_on();
-  
+    
     while (1)
     {
             led_main_high();
@@ -1932,6 +1970,11 @@ void test_blink(void)
     //        //mc_pwrdown(_1s);
     //        //dms(250);
     //        //sp16(rtc_sec);spn;
+    
+            sp_single_log();
+            
+    
+    
     }
 
 
@@ -2005,9 +2048,6 @@ static u8 press_check(  u16 lpress_bar,
 // MAIN
 //=========================
 int main(void){
-
-    //test_blink();
-    
     //-------------
     // init
     atmega328p_init();
@@ -2033,11 +2073,15 @@ int main(void){
     serial_init();
 
     //--------------
+    tim_flow_cnt_init();
+    //--------------
     tim_sec_init();
     
     //--------------
     sei();
     wdt_reset();
+    
+    
     
     //--------------
     spn;
@@ -2049,6 +2093,8 @@ int main(void){
     spn;
     
     
+    
+    test_blink();
 
 //=============================
 // START 
