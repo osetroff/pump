@@ -1,6 +1,10 @@
 //TODO 
 /*
  
+ * average flow array 
+ * N bytes <> N sec 
+ * and 2 eeprom variables
+ * 
  * board 2
  * remove wire from 06 D4
  * move led to 12 D6
@@ -74,7 +78,7 @@ RS485 notRE/DE . HIGH to send  330R     |14 B0           B1 15| pump relay 220V 
 #define wdt_on()    mc_wdt_will_reset=1;wdt_enable(_2s)
 #define wdt_off()   wdt_disable()
 //
-static void pump_pwridle(period_t period)
+inline static void pump_pwridle(period_t period)
 {
     pwridle(period);
     wdt_on();
@@ -158,6 +162,8 @@ struct pump_data_s
 
     u16 time_max_pump_on;//max continuous pump on
 
+    u8  flow_avg_sec;//seconds to avg flow
+    u16 flow_avg_min;//min avg flow when pump on
 };
 
 // copy pump data in ram from eeprom
@@ -167,8 +173,26 @@ static u16 pump_empty_delay;
 // pump delay in sec
 static u16 pump_delay_sec;
 
-
-
+//flow data array
+#define pump_flow_avg_sec_max  16
+//each element is flow data for 1 sec 
+//element is 255 if data >254
+static u8 pump_flow[pump_flow_avg_sec_max];
+//cur index inside pump_flow
+static u8 pump_flow_i;
+//average data for 
+static u16 pump_flow_avg;
+//
+static void pump_flow_init(void)
+{
+    u8 li=pump_data.flow_avg_sec;
+    while(li--)
+    {
+        pump_flow[li]=0;
+    }
+    pump_flow_avg=0;
+    pump_flow_i=0;
+}
 
 // pump data info for interface
 static const pump_data_info_s pump_data_info[]=
@@ -192,6 +216,9 @@ static const pump_data_info_s pump_data_info[]=
     {"ds","delay start 30",pump_data_sec,offsetof(pump_data_s,delay_start)},
     {"dpe","delay pressure error 43200",pump_data_sec,offsetof(pump_data_s,delay_pressure_error)},
     {"tmpo","time max pump on 7200",pump_data_sec,offsetof(pump_data_s,time_max_pump_on)},
+    {"saf","seconds to avg flow 15",pump_data_u8,offsetof(pump_data_s,flow_avg_sec)},
+    {"maf","min avg flow when pump on 2",pump_data_u16,offsetof(pump_data_s,flow_avg_min)},
+
 };
 //def
 /*
@@ -219,6 +246,22 @@ static const pump_data_info_s pump_data_info[]=
 //
 #define pump_data_info_len (sizeof(pump_data_info)/sizeof(pump_data_info_s))
 
+//check
+static void pump_data_check(void)
+{
+    //check
+    if (pump_data.flow_avg_sec>
+            pump_flow_avg_sec_max)
+    {
+        pump_data.flow_avg_sec=
+            pump_flow_avg_sec_max;    
+    } 
+    else
+    if (pump_data.flow_avg_sec==0)
+    {
+        pump_data.flow_avg_sec=1;
+    }
+}
 // copy pump data from eeprom to ram
 inline static void pump_data_init(u16 laddr)
 {
@@ -231,6 +274,7 @@ inline static void pump_data_init(u16 laddr)
         *lp++=eerb();
         eea_next();
     }
+    pump_data_check();
 }
 
 
@@ -387,6 +431,7 @@ static void pump_on(void)
     bit_set0(pump_state,pump_state_empty|
                         pump_state_on_too_long|
                         pump_state_high_press);
+    pump_flow_init();
 }
 //off
 static void pump_off(void)
@@ -637,7 +682,8 @@ inline static void tim_sec_init(void)
 
 //flow counter for 1 sec 
 //=255 if higher than 254
-static u8 flow_cnt=0;
+//static u8 flow_cnt=0;
+
 //
 inline static void tim_flow_cnt_start(void)
 {
@@ -684,14 +730,23 @@ ISR(TIMER1_COMPA_vect)
         pump_on_time_s++;
         if (pump_on_time_s==0){pump_on_time_s--;}
         
-        //save flow cnt
-        flow_cnt=TCNT0;
+        //flow cnt
+        u8 lf=TCNT0;
         TCNT0=0;
+        //start if needed
         if (TCCR0B==0)
         {
             //again start tim flow cnt
             tim_flow_cnt_start();
         }
+        //save flow cnt
+        pump_flow_avg-=pump_flow[pump_flow_i];       
+        pump_flow[pump_flow_i++]=lf;
+        if (pump_flow_i==pump_flow_avg_sec_max)
+        {
+            pump_flow_i=0;
+        }
+        
     }
 }          
           
@@ -1419,6 +1474,7 @@ inline static u8 pump_data_serial_inp(u8 li)
         default:
             return 2;
     }
+    pump_data_check();
     return 0;
 }
 
@@ -1706,7 +1762,7 @@ void sp_single_log(void)
     if (pump_is_on())
     {
         s(" on ");sptime_s_to_hm(pump_on_time_s);
-        s("flow ");sp8(flow_cnt);
+        sp8(pump_data.flow_avg_sec);s(" sec flow ");sp16(pump_flow_avg);
     }
     else
     {
