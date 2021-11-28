@@ -667,62 +667,84 @@ void sptime_s_to_hm(u16 lsec)
 }
 
 
-
+//start tim
+static void tim_sec_start(void)
+{
+    TCNT1=0;
+    TCCR1B=(1<<WGM12)|//CTC
+            (1<<CS12);//div 256
+    
+}
+//stop tim
+inline static void tim_sec_stop(void)
+{
+    TCCR1B=0;
+}
 //--------------------
 // timer for count seconds
 inline static void tim_sec_init(void)
 {
     power_timer1_enable();
     //stop 
-    TCCR1B=0;
+    tim_sec_stop();
     //CTC 1second
     OCR1A=(8000000/256)-1;
     
     TCCR1A=0;
     TCCR1C=0;
-    TCNT1=0;
     
     //int when TCNT>OCRA
     TIMSK1=(1<<OCIE1A);
     TIFR1=0;
     
     //start tim
-    TCCR1B|=(1<<WGM12)|//CTC
-            (1<<CS12);//div 256
+    tim_sec_start();
     
 }
 
 
 
+
+#define tim_flow_cnt_is_stop()  TCCR0B==0 
+#define tim_flow_cnt_reg        TCNT0
+inline static void tim_flow_cnt_stop(void)
+{
+    TCCR0B=0;
+}
+inline static void tim_flow_cnt_set_0(void)
+{
+    TCNT0=0;
+}
 //
 inline static void tim_flow_cnt_start(void)
 {
-    
+    tim_flow_cnt_set_0();
     //clk on T0 pin
     TCCR0B=(1<<CS02)|(1<<CS01) //clk t0 on falling edge
-            | (1<<CS00) //clk t0 on rising edge
+            //| (1<<CS00) //clk t0 on rising edge
             ;
 }
 
 // timer to count flow
 inline static void tim_flow_cnt_init()
 {
-    TCCR0B=0;
+    
+    tim_flow_cnt_stop();
     
     TCCR0A=0;
         
     //int on overflow
     TIMSK0=(1<<TOIE0);
     TIFR0=0;
-    //to start tim inside tim_sec irq
-    TCNT0=0;
+    
+    
 }
 
 
 // timer to count flow int
 ISR(TIMER0_OVF_vect)
 {
-    TCCR0B=0;
+    tim_flow_cnt_stop();
     TCNT0=255;
 }
 
@@ -745,14 +767,18 @@ ISR(TIMER1_COMPA_vect)
         if (pump_on_time_s==0){pump_on_time_s--;}
         
         //flow cnt
-        u8 lf=TCNT0;
-        TCNT0=0;
+        u8 lf=tim_flow_cnt_reg;
+        
         
         //start if was overflow for flow counter
-        if (TCCR0B==0)
+        if (tim_flow_cnt_is_stop())
         {
             //again start tim flow cnt
             tim_flow_cnt_start();
+        }
+        else
+        {
+            tim_flow_cnt_set_0();
         }
         //save flow cnt
         pump_flow_avg=
@@ -2409,6 +2435,33 @@ int main(void){
     u8 lrtc_sec_prev;
     
     while (1) 
+    {
+
+        if (pump_is_on())
+        {
+//----------------
+// pump is on
+
+            
+        }
+        else
+        {
+//----------------
+// pump is off
+            pwrdown(_1s,b1);
+            wdt_on();
+            if (pump_delay_sec!=0)
+            {
+                pump_delay_sec--;
+            }
+        }
+        
+//-----------        
+// FSM        
+    }    
+        
+        
+    while (1)
     {
         lrtc_sec_prev=rtc_sec;
         
