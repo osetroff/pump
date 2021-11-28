@@ -2490,11 +2490,11 @@ int main(void){
                 led_main_high();
                 pump_off();
                 bit_set1(pump_state,pump_state_er_flow);
-                //pressure sensor error
+                //flow error
                 s(" poff (flow err)");spn;
                 pump_info=pump_flow_er;
             
-                //delay on pressure error
+                //delay on flow error
                 delay_sec(pump_data.delay_flow_error,
                             led_error);
                 led_main_low();
@@ -2517,6 +2517,12 @@ int main(void){
             bit_set1(pump_state,pump_state_on_too_long);
         }
         
+
+//TODO collect all errorss as bits in er var
+// to analyse same time errors? for ex pressure too high and low flow
+// TODO make fsm table for all situations with pump sensors
+
+
         
 //------------------------
 // main
