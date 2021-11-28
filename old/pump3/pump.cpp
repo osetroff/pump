@@ -163,7 +163,8 @@ struct pump_data_s
     u16 time_max_pump_on;//max continuous pump on
 
     u8  flow_avg_sec;//seconds to avg flow
-    u16 flow_avg_min;//min avg flow when pump on
+    u16 flow_avg_minimum;//min avg flow when pump on
+    u16 delay_flow_error;//delay flow error
 };
 
 // copy pump data in ram from eeprom
@@ -182,6 +183,9 @@ static u8 pump_flow[pump_flow_avg_sec_max];
 static u8 pump_flow_i;
 //average data for 
 static u16 pump_flow_avg;
+// !=0 if we can check flow
+static u8 pump_flow_can_check;
+
 //
 static void pump_flow_init(void)
 {
@@ -190,8 +194,10 @@ static void pump_flow_init(void)
     {
         pump_flow[li]=0;
     }
+    //
     pump_flow_avg=0;
     pump_flow_i=0;
+    pump_flow_can_check=0;
 }
 
 // pump data info for interface
@@ -217,9 +223,12 @@ static const pump_data_info_s pump_data_info[]=
     {"dpe","delay pressure error 43200",pump_data_sec,offsetof(pump_data_s,delay_pressure_error)},
     {"tmpo","time max pump on 7200",pump_data_sec,offsetof(pump_data_s,time_max_pump_on)},
     {"saf","seconds to avg flow 15",pump_data_u8,offsetof(pump_data_s,flow_avg_sec)},
-    {"maf","min avg flow when pump on 2",pump_data_u16,offsetof(pump_data_s,flow_avg_min)},
+    {"maf","minimum avg flow when pump on 2",pump_data_u16,offsetof(pump_data_s,flow_avg_minimum)},
+    {"dfe","delay flow error 3600",pump_data_u16,offsetof(pump_data_s,delay_flow_error)},
+
 
 };
+
 //def
 /*
  4,//press_min
@@ -412,6 +421,7 @@ static u8 pump_state;
 #define pump_state_on_too_long      _1
 #define pump_state_high_press       _2
 #define pump_state_empty            _3
+#define pump_state_er_flow          _4
 #define pump_state_er_press         _7
 
 
@@ -444,6 +454,7 @@ enum pump_info_e
 {
     pump_first,
     pump_press_er,
+    pump_flow_er,
     pump_empty,
     pump_on_low,
     pump_press_high,
@@ -455,6 +466,7 @@ enum pump_info_e
 static const char * pump_info_str[pump_last]={
     "init",
     "press sens error",
+    "flow error",
     "empty",
     "start from low",
     "press high",
@@ -680,9 +692,7 @@ inline static void tim_sec_init(void)
     
 }
 
-//flow counter for 1 sec 
-//=255 if higher than 254
-//static u8 flow_cnt=0;
+
 
 //
 inline static void tim_flow_cnt_start(void)
@@ -693,7 +703,8 @@ inline static void tim_flow_cnt_start(void)
             | (1<<CS00) //clk t0 on rising edge
             ;
 }
-//
+
+// timer to count flow
 inline static void tim_flow_cnt_init()
 {
     TCCR0B=0;
@@ -706,13 +717,16 @@ inline static void tim_flow_cnt_init()
     //to start tim inside tim_sec irq
     TCNT0=0;
 }
-//
+
+
+// timer to count flow int
 ISR(TIMER0_OVF_vect)
 {
     TCCR0B=0;
     TCNT0=255;
 }
-//
+
+// timer to count seconds int
 static u16 rtc_sec=0;
 ISR(TIMER1_COMPA_vect)
 {
@@ -733,18 +747,22 @@ ISR(TIMER1_COMPA_vect)
         //flow cnt
         u8 lf=TCNT0;
         TCNT0=0;
-        //start if needed
+        
+        //start if was overflow for flow counter
         if (TCCR0B==0)
         {
             //again start tim flow cnt
             tim_flow_cnt_start();
         }
         //save flow cnt
-        pump_flow_avg-=pump_flow[pump_flow_i];       
+        pump_flow_avg=
+                pump_flow_avg+lf-pump_flow[pump_flow_i];       
         pump_flow[pump_flow_i++]=lf;
-        if (pump_flow_i==pump_flow_avg_sec_max)
+        //
+        if (pump_flow_i>=pump_data.flow_avg_sec)
         {
             pump_flow_i=0;
+            pump_flow_can_check=1;
         }
         
     }
@@ -2387,9 +2405,20 @@ int main(void){
 //    dus(1000);
 //    dms(4000);
     
+    //prev rtc_sec
+    u8 lrtc_sec_prev;
+    
     while (1) 
     {
-        wdt_reset();
+        lrtc_sec_prev=rtc_sec;
+        
+        //wait next second;
+        do 
+        {
+        pump_pwridle(_2s);
+        } while (rtc_sec==lrtc_sec_prev);
+        
+        //wdt_reset();
         
 
 //check pressure sensor error
@@ -2448,17 +2477,45 @@ int main(void){
         
         
 
-//check max on time
+
+        
+
+// check flow
+        if (pump_flow_can_check!=0)
+        {
+            pump_flow_can_check=0;
+            if (pump_flow_avg<pump_data.flow_avg_minimum)
+            {
+                //low flow -> pump off
+                led_main_high();
+                pump_off();
+                bit_set1(pump_state,pump_state_er_flow);
+                //pressure sensor error
+                s(" poff (flow err)");spn;
+                pump_info=pump_flow_er;
+            
+                //delay on pressure error
+                delay_sec(pump_data.delay_flow_error,
+                            led_error);
+                led_main_low();
+                //bit_set0(pump_state,pump_state_er_press);
+                continue;
+            }
+        }
+        
+        
+        
+        
+        
+        
+        
+// check max on time
         if ((pump_is_on())&&
                 (pump_on_time_s>pump_data.time_max_pump_on))
         {
             spn;s("! max on time");spn;
             bit_set1(pump_state,pump_state_on_too_long);
         }
-        
-        
-        
-        
         
         
 //------------------------
@@ -2614,7 +2671,7 @@ int main(void){
         }
         
         //delay_measure
-        delay_sec(pump_data.delay_measure,
-                        led_no);
+       // delay_sec(pump_data.delay_measure,
+        //                led_no);
     } //MAIN LOOP   
 }
