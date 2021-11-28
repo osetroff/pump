@@ -1,0 +1,1 @@
+./avrdude -v -C./avrdude.conf -F -pm328p -carduino -b38400 -P/dev/ttyUSB0 -Ueeprom:w:0xFF,0x31,0x31,0x30,0x30,0x30:m
