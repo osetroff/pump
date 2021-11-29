@@ -882,8 +882,28 @@ static u16 rtc_sec_get_event_rest(u16 ltend)
 
 //---------------------
 // led blink
+
+// --------------------
+// | 255 255 .. 255   | 255 ..255
+//                    ------------------
+// pump_led_blink_high pump_led_blink_low
+//            pump_led_blinks
+
 //blinks
-volatile u8 pump_led_blinks=0;
+volatile static u8 pump_led_blinks=0;
+//tim ticks for high
+#define pump_led_blink_high_max (u8)1
+//tim ticks for low
+#define pump_led_blink_low_max  (u8)1
+//high low cnt
+volatile static u8 pump_led_blink_hl_cnt;
+//max value
+volatile static u8 pump_led_blink_hl_max;
+//blinks cnt
+volatile static u8 pump_led_blinks_cnt;
+//=1 high period, =0 low period
+volatile static u8 pump_led_blink_high;
+
 
 #define tim_blink_is_stop()     TCCR2B==0 
 #define tim_blink_reg           TCNT2
@@ -894,15 +914,6 @@ inline static void tim_blink_stop(void)
 inline static void tim_blink_set_0(void)
 {
     tim_blink_reg =0;
-}
-//
-inline static void tim_blink_start(void)
-{
-    tim_blink_set_0();
-    //
-    TCCR2B= (0<<WGM22)|//ctc
-            (1<<CS22)|(1<<CS21)|(1<<CS20); //div 1024
-            
 }
 
 // timer to count flow
@@ -916,16 +927,43 @@ inline static void tim_blink_init()
     //int on overflow
     TIMSK2=(1<<OCIE2A);
     TIFR2=0;
-    
-    
+       
 }
 
 
 // timer blink int
 ISR(TIMER2_COMPA_vect)
 {
-    //tim_flow_cnt_stop();
-    //TCNT0=255;
+    if (pump_led_blink_hl_cnt==pump_led_blink_hl_max)
+    {
+        //end period
+        pump_led_blink_high=1-pump_led_blink_high;
+        //clr cnt
+        pump_led_blink_hl_cnt=0;
+        
+         //set led high or low
+        if (pump_led_blink_high==1)
+        {
+            led_main_high();
+            pump_led_blink_hl_max=pump_led_blink_high_max;    
+        }
+        else
+        {
+            led_main_low();
+            //last period can tim blink set off
+            if ((pump_led_blinks_cnt+1)==pump_led_blinks)
+            {
+                tim_blink_stop();
+            }
+            else
+            {
+                pump_led_blink_hl_max=pump_led_blink_low_max;
+            }
+        }
+        
+    }
+    //next
+    pump_led_blink_hl_cnt++;
 }
 
 
@@ -933,7 +971,24 @@ ISR(TIMER2_COMPA_vect)
 //blink 
 inline static void led_blink(void)
 {
-    if (pump_led_blinks!=0) tim_blink_start();
+    if (pump_led_blinks!=0)
+    {
+        
+        //current blink
+        pump_led_blinks_cnt=0;
+        //set period cnt to 0
+        pump_led_blink_hl_cnt=0;
+        //set period to
+        pump_led_blink_high=0;
+        //set period max
+        pump_led_blink_hl_max=0;
+        
+        
+        //start
+        tim_blink_set_0();
+        TCCR2B= (0<<WGM22)|//ctc
+                (1<<CS22)|(1<<CS21)|(1<<CS20); //div 1024
+    }        
 }
 
 
