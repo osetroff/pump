@@ -950,8 +950,9 @@ ISR(TIMER2_COMPA_vect)
         else
         {
             led_main_low();
+            pump_led_blinks_cnt++;
             //last period can tim blink set off
-            if ((pump_led_blinks_cnt+1)==pump_led_blinks)
+            if (pump_led_blinks_cnt==pump_led_blinks)
             {
                 tim_blink_stop();
             }
