@@ -729,6 +729,8 @@ inline static void tim_flow_cnt_start(void)
 inline static void tim_flow_cnt_init()
 {
     
+    power_timer0_enable();
+
     tim_flow_cnt_stop();
     
     TCCR0A=0;
@@ -892,9 +894,9 @@ static u16 rtc_sec_get_event_rest(u16 ltend)
 //blinks
 volatile static u8 pump_led_blinks=0;
 //tim ticks for high
-#define pump_led_blink_high_max (u8)1
+#define pump_led_blink_high_max (u8)2
 //tim ticks for low
-#define pump_led_blink_low_max  (u8)1
+#define pump_led_blink_low_max  (u8)6
 //high low cnt
 volatile static u8 pump_led_blink_hl_cnt;
 //max value
@@ -920,6 +922,8 @@ inline static void tim_blink_set_0(void)
 inline static void tim_blink_init()
 {
     
+    power_timer2_enable();
+
     tim_blink_stop();
     
     TCCR2A=(1<<WGM21)|(0<<WGM20);//ctc
@@ -934,6 +938,7 @@ inline static void tim_blink_init()
 // timer blink int
 ISR(TIMER2_COMPA_vect)
 {
+    //tim_blink_set_0();
     if (pump_led_blink_hl_cnt==pump_led_blink_hl_max)
     {
         //end period
@@ -969,12 +974,12 @@ ISR(TIMER2_COMPA_vect)
 
 
 
-//blink 
-inline static void led_blink(void)
+//blink max 5 times
+inline static void led_blink5(void)
 {
     if (pump_led_blinks!=0)
     {
-        sp('.');spn;
+        //sp('.');spn;
         //current blink
         pump_led_blinks_cnt=0;
         //set period cnt to 0
@@ -2364,7 +2369,7 @@ int main(void){
             //enter was detected
             
             //exit from setup
-            if (serial_inp_cmp("123")==1)
+            if (serial_inp_cmp("12")==1)
             {
                 lblink=2;
                 break;
@@ -2432,7 +2437,7 @@ int main(void){
     //look for command
 
                         //exit from setup
-                        if (serial_inp_cmp("exit")==1)
+                        if (serial_inp_cmp("e")==1)
                         {
                             break;
                         }
@@ -2559,6 +2564,15 @@ int main(void){
     
     
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
 //=============================
 // MAIN LOOP
     s("MAIN");spn;
@@ -2570,10 +2584,10 @@ int main(void){
     {
         
 
-// led blink by timer one strob every 2 seconds
-        if ((((u8)rtc_sec)&0x01)==0)
+// led blink by timer one strob every N seconds
+        if ((((u8)rtc_sec)&0x03)==0x3)
         {
-            led_blink();
+            led_blink5();
         }
 
         
@@ -2590,7 +2604,7 @@ int main(void){
         if (serial_has_input!=0)
         {
             u8 lc=serial_buf[0];
-            if ((lc>='0')&&(lc<='9'))
+            if ((lc>='0')&&(lc<='5'))
             {
                 pump_led_blinks=lc-'0';
             }
