@@ -2564,6 +2564,14 @@ int main(void){
     while (1) 
     {
         
+
+// led blink by timer one strob every 2 seconds
+        if ((((u8)rtc_sec)&0x01)==0)
+        {
+            led_blink();
+        }
+
+        
 // sleep 1s        
         lrtc_sec_prev=rtc_sec;
         do 
@@ -2572,21 +2580,26 @@ int main(void){
             wdt_on();
         } while (lrtc_sec_prev==rtc_sec);
 
-        
-// led blink by timer one strob every 2 seconds
-        if ((((u8)rtc_sec)&0x01)==0)
-        {
-            led_blink();
-        }
-        
-        
-            
+
 // show log if get something from usart
         if (serial_has_input!=0)
         {
-            sp_single_log();
+            u8 lc=serial_buf[0];
+            if ((lc>='0')&&(lc<='9'))
+            {
+                pump_led_blinks=lc-'0';
+            }
+            else
+            {
+                sp_single_log();
+            }
             serial_buf_clear();
         }
+        
+
+        
+        
+            
             
 
         
