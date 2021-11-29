@@ -73,6 +73,17 @@ RS485 notRE/DE . HIGH to send  330R     |14 B0           B1 15| pump relay 220V 
  */
 
 
+//--------------------
+// fsm
+enum pump_fsm_e
+{
+    pump_fsm_off,
+    pump_fsm_last,
+};
+volatile static u8 pump_fsm;
+
+
+
 //-----------------
 // Watchdog
 #define wdt_on()    mc_wdt_will_reset=1;wdt_enable(_2s)
@@ -2279,6 +2290,115 @@ static u8 press_check(  u16 lpress_bar,
 
 
 
+
+
+// pump check sensor errors    
+static u8 pump_check_sens(void)    
+{
+    u8 le=0;
+    //check pressure sensor error
+        
+        //measure pressure
+        adc_read();
+        //save
+        u16 lpress1_bar=adc.press1_bar;
+        u16 lpress2_bar=adc.press2_bar;
+        
+        
+        //measure pressure
+        adc_read();
+        
+        //log
+        sp_single_log();
+        
+        
+        //check press sensor
+        le+=press_check(lpress1_bar,adc.press1_bar);
+        le+=press_check(lpress2_bar,adc.press2_bar);
+ 
+        
+
+
+//if error of pressure sensor
+        if (le!=0)
+        {
+            led_main_high();
+            pump_off();
+            bit_set1(pump_state,pump_state_er_press);
+            //pressure sensor error
+            s(" poff (press err)");spn;
+            pump_info=pump_press_er;
+            
+            //delay on pressure error
+            delay_sec(pump_data.delay_pressure_error,
+                            led_error);
+            led_main_low();
+            //bit_set0(pump_state,pump_state_er_press);
+            return 3;
+        }
+//        else
+//        {
+//            s("ok");spn;
+//        }
+//        
+
+// check flow
+        if (pump_flow_can_check!=0)
+        {
+            pump_flow_can_check=0;
+            if (pump_flow_avg<pump_data.flow_avg_minimum)
+            {
+                //low flow -> pump off
+                led_main_high();
+                pump_off();
+                bit_set1(pump_state,pump_state_er_flow);
+                //flow error
+                s(" poff (flow err)");spn;
+                pump_info=pump_flow_er;
+            
+                //delay on flow error
+                delay_sec(pump_data.delay_flow_error,
+                            led_error);
+                led_main_low();
+                //bit_set0(pump_state,pump_state_er_press);
+                return 4;
+            }
+        }
+        
+        
+        
+        
+        
+        
+        
+// check max on time
+        if ((pump_is_on())&&
+                (pump_on_time_s>pump_data.time_max_pump_on))
+        {
+            spn;s("! max on time");spn;
+            bit_set1(pump_state,pump_state_on_too_long);
+            return 5;
+        }
+        return le;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //=========================
 // MAIN
 //=========================
@@ -2570,13 +2690,11 @@ int main(void){
     
     
     
-    
-    
-    
 //=============================
 // MAIN LOOP
     s("MAIN");spn;
-    
+    //fsm
+    pump_fsm=pump_fsm_off;
     //prev rtc_sec
     u8 lrtc_sec_prev;
     
@@ -2588,6 +2706,8 @@ int main(void){
         if ((((u8)rtc_sec)&0x03)==0x3)
         {
             led_blink5();
+            //log
+            sp_single_log();
         }
 
         
@@ -2615,146 +2735,32 @@ int main(void){
             serial_buf_clear();
         }
         
-
-        
-        
-            
-            
-
-        
 // FSM        
+        switch (pump_fsm)
+        {
+
+case pump_fsm_off:
+            pump_check_sens();
+            break;
+            
+            
+// reset
+default:    
+            s("reset state");
+            reset(_4s);
+            break;
+        }
         
-        
-//        if (pump_is_on())
-//        {
-////----------------
-//// pump is on
-//
-//            
-//        }
-//        else
-//        {
-////----------------
-//// pump is off
-//            pwrdown(_1s,b1);
-//            wdt_on();
-//            if (pump_delay_sec!=0)
-//            {
-//                pump_delay_sec--;
-//            }
-//        }
         
     }    
         
         
     while (1)
     {
-        lrtc_sec_prev=rtc_sec;
-        
-        //wait next second;
-        do 
-        {
-        pump_pwridle(_2s);
-        } while (rtc_sec==lrtc_sec_prev);
-        
-        //wdt_reset();
-        
-
-//check pressure sensor error
-        
-        //measure pressure
-        adc_read();
-        //log
-        sp_single_log();
-        
-        //save
-        u16 lpress1_bar=adc.press1_bar;
-        u16 lpress2_bar=adc.press2_bar;
-        u8 le=0;
-        
-        
-        //measure pressure
-        adc_read();
-        
-        //log
-        sp_single_log();
-        
-        
-        //check press sensor
-        le+=press_check(lpress1_bar,adc.press1_bar);
-        le+=press_check(lpress2_bar,adc.press2_bar);
         
         
 
 
-//if error of pressure sensor
-        if (le!=0)
-        {
-            led_main_high();
-            pump_off();
-            bit_set1(pump_state,pump_state_er_press);
-            //pressure sensor error
-            s(" poff (press err)");spn;
-            pump_info=pump_press_er;
-            
-            //delay on pressure error
-            delay_sec(pump_data.delay_pressure_error,
-                            led_error);
-            led_main_low();
-            //bit_set0(pump_state,pump_state_er_press);
-            continue;
-        }
-//        else
-//        {
-//            s("ok");spn;
-//        }
-//        
-        
-        
-        
-        
-        
-        
-
-
-        
-
-// check flow
-        if (pump_flow_can_check!=0)
-        {
-            pump_flow_can_check=0;
-            if (pump_flow_avg<pump_data.flow_avg_minimum)
-            {
-                //low flow -> pump off
-                led_main_high();
-                pump_off();
-                bit_set1(pump_state,pump_state_er_flow);
-                //flow error
-                s(" poff (flow err)");spn;
-                pump_info=pump_flow_er;
-            
-                //delay on flow error
-                delay_sec(pump_data.delay_flow_error,
-                            led_error);
-                led_main_low();
-                //bit_set0(pump_state,pump_state_er_press);
-                continue;
-            }
-        }
-        
-        
-        
-        
-        
-        
-        
-// check max on time
-        if ((pump_is_on())&&
-                (pump_on_time_s>pump_data.time_max_pump_on))
-        {
-            spn;s("! max on time");spn;
-            bit_set1(pump_state,pump_state_on_too_long);
-        }
         
 
 //TODO collect all errorss as bits in er var
