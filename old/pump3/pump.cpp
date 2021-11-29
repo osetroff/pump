@@ -873,6 +873,81 @@ static u16 rtc_sec_get_event_rest(u16 ltend)
 
 
 
+
+
+
+
+
+
+
+//---------------------
+// led blink
+//blinks
+volatile u8 pump_led_blinks=0;
+
+#define tim_blink_is_stop()     TCCR2B==0 
+#define tim_blink_reg           TCNT2
+inline static void tim_blink_stop(void)
+{
+    TCCR2B=0;
+}
+inline static void tim_blink_set_0(void)
+{
+    tim_blink_reg =0;
+}
+//
+inline static void tim_blink_start(void)
+{
+    tim_blink_set_0();
+    //
+    TCCR2B= (0<<WGM22)|//ctc
+            (1<<CS22)|(1<<CS21)|(1<<CS20); //div 1024
+            
+}
+
+// timer to count flow
+inline static void tim_blink_init()
+{
+    
+    tim_blink_stop();
+    
+    TCCR2A=(1<<WGM21)|(0<<WGM20);//ctc
+    OCR2A=255;    
+    //int on overflow
+    TIMSK2=(1<<OCIE2A);
+    TIFR2=0;
+    
+    
+}
+
+
+// timer blink int
+ISR(TIMER2_COMPA_vect)
+{
+    //tim_flow_cnt_stop();
+    //TCNT0=255;
+}
+
+
+
+//blink 
+inline static void led_blink(void)
+{
+    if (pump_led_blinks!=0) tim_blink_start();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 //--------------------
 // rs485
 //PD3 R0 INT1
@@ -1800,7 +1875,7 @@ enum led_t {
     led_error,
 };
 
-void sp_single_log(void)
+static void sp_single_log(void)
 {
     spadc();
     if (pump_is_on())
@@ -2142,8 +2217,6 @@ static u8 press_check(  u16 lpress_bar,
 
 
 
-
-
 //=========================
 // MAIN
 //=========================
@@ -2428,36 +2501,61 @@ int main(void){
 //=============================
 // MAIN LOOP
     s("MAIN");spn;
-//    dus(1000);
-//    dms(4000);
     
     //prev rtc_sec
     u8 lrtc_sec_prev;
     
     while (1) 
     {
-
-        if (pump_is_on())
+        
+// sleep 1s        
+        lrtc_sec_prev=rtc_sec;
+        do 
         {
-//----------------
-// pump is on
-
-            
-        }
-        else
-        {
-//----------------
-// pump is off
-            pwrdown(_1s,b1);
+            pwridle(_1s);
             wdt_on();
-            if (pump_delay_sec!=0)
-            {
-                pump_delay_sec--;
-            }
+        } while (lrtc_sec_prev==rtc_sec);
+
+        
+// led blink by timer one strob every 2 seconds
+        if ((((u8)rtc_sec)&0x01)==0)
+        {
+            led_blink();
         }
         
-//-----------        
+        
+            
+// show log if get something from usart
+        if (serial_has_input!=0)
+        {
+            sp_single_log();
+            serial_buf_clear();
+        }
+            
+
+        
 // FSM        
+        
+        
+//        if (pump_is_on())
+//        {
+////----------------
+//// pump is on
+//
+//            
+//        }
+//        else
+//        {
+////----------------
+//// pump is off
+//            pwrdown(_1s,b1);
+//            wdt_on();
+//            if (pump_delay_sec!=0)
+//            {
+//                pump_delay_sec--;
+//            }
+//        }
+        
     }    
         
         
