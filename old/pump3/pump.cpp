@@ -974,7 +974,7 @@ inline static void led_blink(void)
 {
     if (pump_led_blinks!=0)
     {
-        
+        sp('.');spn;
         //current blink
         pump_led_blinks_cnt=0;
         //set period cnt to 0
@@ -1934,6 +1934,7 @@ enum led_t {
 static void sp_single_log(void)
 {
     spadc();
+    s("led ");sp8(pump_led_blinks);spn;
     if (pump_is_on())
     {
         s(" on ");sptime_s_to_hm(pump_on_time_s);
@@ -2303,6 +2304,10 @@ int main(void){
 
     //--------------
     tim_flow_cnt_init();
+    
+    //--------------
+    tim_blink_init();
+    
     //--------------
     tim_sec_init();
     
@@ -2323,7 +2328,7 @@ int main(void){
     
     
     
-    test_blink();
+    //test_blink();
 
 //=============================
 // START 
